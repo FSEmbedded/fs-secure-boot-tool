@@ -1,0 +1,53 @@
+[Header]
+    Version = 4.1
+    Hash Algorithm = sha256
+    Engine = ANY
+    Engine Configuration = 0
+    Certificate Format = X509
+    Signature Format = CMS
+[Install SRK]
+    File = "./cst-2.3.2/crts/SRK_Table.bin"
+    Source index = ###INDEX###
+[Install CSFK]
+    File = "./cst-2.3.2/crts/CSF1_1_sha256_###BIT###_65537_v3_usr_crt.pem"
+[Authenticate CSF]
+#recommended by nxp
+#[Init]
+#     Engine = CAAM
+#     Features = RNG
+#[Unlock]
+#    Engine = CAAM
+#    Features = RNG
+[Install Key]
+    File = "./cst-2.3.2/crts/IMG###NUM###_1_sha256_###BIT###_65537_v3_usr_crt.pem"
+    Verification index = ###INDEX###
+    Target index = 2
+[Authenticate Data]
+    Verification index = 2
+    Blocks = ###ADDR### ###OFFSET### ###SIZE### "###BOOT###"
+#[Write Data]
+#    Width = 4
+#    Address Data = 0x020cc004 0x80000000, \
+#		   0x020cc064 0x41736166, \
+#		   0x020cc04c 0x00000008, \
+#		   0x020cc06c 0x11111111, \
+#		   0x020cc070 0x22222222, \
+#		   0x020cc074 0x33333333, \
+#		   0x020cc078 0x44444444, \
+#		   0x020cc07c 0x55555555, \
+#		   0x020cc080 0x66666666, \
+#		   0x020cc084 0x77777777, \
+#		   0x020cc088 0x88888888, \
+#		   0x020cc03c 0x0000000a, \
+#          0x020cc000 0x00000203, \
+#          0x020cc034 0x00000003
+#[Install Secret Key]
+#    Verification index = 2
+#    Target index = 0
+#    Key = "dek.bin"
+#    Key Length = ###length###
+#    Blob address = ###KEY_ADDR###
+#[Decrypt Data]
+#    Verification index = 0
+#    Mac Bytes = 16
+#    Blocks = ###ADDR_DEC### ###OFFSET_ENC### ###SIZE_DEC### "###BOOT###"
