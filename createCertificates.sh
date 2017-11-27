@@ -195,9 +195,9 @@ function createSRKHash()
     srk_file="srkhash.txt"
     SIZE_SRK_FUSE=`stat -c %s "$SRK"`
     if [ "$SIZE_SRK_FUSE"  == "32" ]; then
-	SIGNS=`hexdump -e '/1 "%02X"' "$SRK" | wc -c`
+	SIGNS=`hexdump -v -e '/1 "%02X"' "$SRK" | wc -c`
 	if [ "$SIGNS" == "64" ]; then
-	    hexdump -e '/1 "%02X"' "$SRK" > $srk_file
+	    hexdump -v -e '/1 "%02X"' "$SRK" > $srk_file
 	    HASH=`cat $srk_file`
 	    erg_old=0x00
 	    erg=0
