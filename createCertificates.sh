@@ -147,25 +147,39 @@ function createSRK()
             exit 1
     esac
 
+# check if fast authentication?
+    case "$file" in
+        *_ca_*)
+            flag="ca"
+            ;;
+        *_usr_*)
+            flag="usr"
+            ;;
+        *)
+            echo "error: format not known!"
+            exit 1
+    esac
+
     if [ "$count" = "1" ]; then
-	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_ca_crt.pem -f 1
+	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem -f 1
 
     elif [ "$count" = "2" ]; then
 
-	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_ca_crt.pem,./cst-2.3.2/crts/SRK2_sha256_${kl}_65537_v3_ca_crt.pem -f 1
+	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK2_sha256_${kl}_65537_v3_${flag}_crt.pem -f 1
 
     elif [ "$count" = "3" ]; then
 
-	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_ca_crt.pem,./cst-2.3.2/crts/SRK2_sha256_${kl}_65537_v3_ca_crt.pem,./cst-2.3.2/crts/SRK3_sha256_${kl}_65537_v3_ca_crt.pem -f 1
+	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK2_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK3_sha256_${kl}_65537_v3_${flag}_crt.pem -f 1
 
     elif [ "$count" = "4" ]; then
 
-	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_ca_crt.pem,./cst-2.3.2/crts/SRK2_sha256_${kl}_65537_v3_ca_crt.pem,./cst-2.3.2/crts/SRK3_sha256_${kl}_65537_v3_ca_crt.pem,./cst-2.3.2/crts/SRK4_sha256_${kl}_65537_v3_ca_crt.pem  -f 1
+	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK2_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK3_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK4_sha256_${kl}_65537_v3_${flag}_crt.pem  -f 1
 
     fi
 
 #modify boot_raw (CSF)
     sed -e "s/###BIT###/$kl/" ./boot_raw > boot_raw_edited
+
     rm boot_raw
 
 }
