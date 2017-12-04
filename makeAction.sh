@@ -91,9 +91,12 @@ case "$CPU_ARCH" in
 	CPU_ARCH=SDQ
 	;;
     2 )
-	CPU_ARCH=UL
+	CPU_ARCH=SX
 	;;
     3 )
+	CPU_ARCH=UL
+	;;
+    4 )
 	CPU_ARCH=VYB
 	;;
 esac
@@ -119,6 +122,9 @@ if [ -z "$DEVTREE_LOAD_ADDR" ]; then
 	SDQ )
 	    DEVTREE_LOAD_ADDR=11000000
 	    ;;
+	SX )
+	    DEVTREE_LOAD_ADDR=81000000
+	    ;;
 	UL )
 	    DEVTREE_LOAD_ADDR=81000000
 	    ;;
@@ -133,6 +139,9 @@ fi
 if [ -z "$PAD_SIZE" ]; then
     case "$CPU_ARCH" in
 	SDQ )
+	    PAD_SIZE=80000
+	    ;;
+	SX )
 	    PAD_SIZE=80000
 	    ;;
 	UL )
