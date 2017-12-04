@@ -7,7 +7,7 @@ LIGHT_GREEN='\033[1;32m'
 LIGHT_RED='\033[0;31m'
 
 
-################################################################################
+###############################################################################
 # function: handleParameters()
 #
 # parameters: -
@@ -17,7 +17,7 @@ LIGHT_RED='\033[0;31m'
 # description:
 # This functions stores the script parameters in global(!) vairables.
 #
-################################################################################
+###############################################################################
 
 function handleParameters()
 {
@@ -27,7 +27,7 @@ function handleParameters()
     IMAGE_PATH=$4
 }
 
-################################################################################
+###############################################################################
 # function: setCertNumberSigning()
 #
 # parameters: -
@@ -35,16 +35,17 @@ function handleParameters()
 # return: -
 #
 # description:
-# This function sets the numbers in the boot.csf-in file depending which created
-# certificate should be used (is treated as '1')
+# This function sets the numbers in the boot.csf-in file depending which
+# created certificate should be used (is treated as '1')
 #
-################################################################################
+###############################################################################
 
 function setCertNumberSigning()
 {
 #    path=./cst-2.3.2/crts/
 #    local quantity=`ls -d ${path}SRK*.pem | wc -l`
-#    printf "Which certificate do you want to use for signing (1-%u)?\b\n" "$quantity"
+#    printf "Which certificate do you want to use for signing"
+#    printf " (1-%u)?\b\n" "$quantity"
     local num=1
 #    read num
 
@@ -60,11 +61,12 @@ function setCertNumberSigning()
 
     local temp
     let "temp=$num - 1"
-    sed -e "s/###INDEX###/$temp/" -e "s/###NUM###/$num/" boot_raw_edited > boot_in.csf
+    sed -e "s/###INDEX###/$temp/" -e "s/###NUM###/$num/" \
+    boot_raw_edited > boot_in.csf
 }
 
 
-################################################################################
+###############################################################################
 # function: getImageToBeSigned()
 #
 # parameters: -
@@ -75,7 +77,7 @@ function setCertNumberSigning()
 # Copies the specified image to the working directory and stores it's name in a
 # global variable.
 #
-################################################################################
+###############################################################################
 
 function getImageToBeSigned()
 {
@@ -336,14 +338,16 @@ function createIVTHeader()
 	let CSF_ADDR="$CSF_ADDR + 0x58"
     fi
 
-    local temp=`echo ${IVT_HEADER:6:2}${IVT_HEADER:4:2}${IVT_HEADER:2:2}${IVT_HEADER:0:2}`
+    local temp=`echo ${IVT_HEADER:6:2}${IVT_HEADER:4:2}${IVT_HEADER:2:2}\
+${IVT_HEADER:0:2}`
     local out=`echo -n -e $temp | sed -e 's/.\{2\}/&\\\x/g'`
 
     temp=\\x$out
     final=${temp::-2}
     echo -n -e $final > $IVT_TARGET
 
-    temp=`echo ${ENTRY_POINT:6:2}${ENTRY_POINT:4:2}${ENTRY_POINT:2:2}${ENTRY_POINT:0:2}`
+    temp=`echo ${ENTRY_POINT:6:2}${ENTRY_POINT:4:2}${ENTRY_POINT:2:2}\
+${ENTRY_POINT:0:2}`
     out=`echo -n -e $temp | sed -e 's/.\{2\}/&\\\x/g'`
     temp=\\x$out
     final=${temp::-2}
@@ -355,7 +359,8 @@ function createIVTHeader()
     echo -n -e $zeroes >> $IVT_TARGET
     echo -n -e $zeroes >> $IVT_TARGET
 
-    temp=`echo ${BOOT_DATA:6:2}${BOOT_DATA:4:2}${BOOT_DATA:2:2}${BOOT_DATA:0:2}`
+    temp=`echo ${BOOT_DATA:6:2}${BOOT_DATA:4:2}${BOOT_DATA:2:2}\
+${BOOT_DATA:0:2}`
 
     out=`echo -n -e $temp | sed -e 's/.\{2\}/&\\\x/g'`
 
@@ -363,7 +368,8 @@ function createIVTHeader()
     final=${temp::-2}
     echo -n -e $final >> $IVT_TARGET
 
-    temp=`echo ${SELF_POINTER:6:2}${SELF_POINTER:4:2}${SELF_POINTER:2:2}${SELF_POINTER:0:2}`
+    temp=`echo ${SELF_POINTER:6:2}${SELF_POINTER:4:2}${SELF_POINTER:2:2}\
+${SELF_POINTER:0:2}`
     out=`echo -n -e $temp | sed -e 's/.\{2\}/&\\\x/g'`
     temp=\\x$out
     final=${temp::-2}
@@ -463,7 +469,7 @@ ${BOOT_DATA_LENGTH:2:2}${BOOT_DATA_LENGTH:0:2}`
 }
 
 
-################################################################################
+###############################################################################
 # function: runFakeCST()
 #
 # parameters: $1: image
