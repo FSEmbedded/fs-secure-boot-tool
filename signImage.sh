@@ -426,7 +426,7 @@ ${LOAD_ADDRESS:2:2}${LOAD_ADDRESS:0:2}`
 
     local temp_length=`echo ${BOOT_DATA_LENGTH:6:2}${BOOT_DATA_LENGTH:4:2}\
 ${BOOT_DATA_LENGTH:2:2}${BOOT_DATA_LENGTH:0:2}`
-    echo "temp_length = ${temp_length}"
+
     local out_zeros=`echo -n -e $ZEROS | sed -e 's/.\{2\}/&\\\x/g'`
     local out_ffpad=`echo -n -e $FF_PAD | sed -e 's/.\{2\}/&\\\x/g'`
     temp_length=`echo -n -e $temp_length | sed -e 's/.\{2\}/&\\\x/g'`
