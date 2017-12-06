@@ -12,6 +12,11 @@ printf "Do you want to ${BOLD}create${NORMAL} certificates, ${BOLD}sign${NORMAL}
 printf "Note: When an image is encrypted it's also signed!\b\n"
 read action
 
+if [ "$action" != "c" ] && [ "$action" != "s" ] && [ "$action" != "e" ] && [ "$action" != "j" ]; then
+    printf "${BOLD}command not supported!${NORMAL}\b\n"
+    exit 1
+fi
+
 if [ "$action" == "c" ]; then
     ./makeAction.sh --settings=$settings --action=$action
     exit 0
@@ -68,9 +73,25 @@ if [ "$action" == "s" ]; then
     exit 0
 
 elif [ "$action" == "e" ]; then
+    printf "Do you want to use master key with ${BOLD}OTPMK${NORMAL} or ${BOLD}ZMK (o/z)${NORMAL}?\b\n"
+    read master_key
+    if [ "$master_key" != "o" ] && [ "$master_key" != "z" ]; then
+        printf "${BOLD}wrong master key!${NORMAL}\b\n"
+        exit 1
+    fi
+    check_nboot_for_keys=true
+    ./makeAction.sh --loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --key-length="$key_length" --master-key="$master_key" --check-nboot-for-keys="$check_nboot_for_keys"
+    if [ $? == 1 ]; then
+        exit 0
+    fi
     printf "Enter key length ${BOLD}(128/192/256):${NORMAL}\b\n"
     read key_length
-    ./makeAction.sh --devicetree-loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --key-length="$key_length"
+    if [ $key_length != 128 ] && [ $key_length != 192 ] && [ $key_length != 256 ]; then
+	printf "${BOLD}wrong key length!${NORMAL}\b\n"
+	exit 1
+    fi
+    check_nboot_for_keys=false
+    ./makeAction.sh --devicetree-loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --key-length="$key_length" --master-key="$master_key" --check-nboot-for-keys="$check_nboot_for_keys"
 fi
 
 exit 0

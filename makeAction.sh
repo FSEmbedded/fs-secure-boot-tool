@@ -2,7 +2,7 @@
 
 # handle script parameters
 
-OPTS=`getopt -n 'generate'  -o: --long pad-to:,output:,devicetree-loadaddr:,cpu:,action:,serial-interface:,auto-mode:,burn-fuses:,settings:,image-path:,key-length: -- "$@"`
+OPTS=`getopt -n 'generate'  -o: --long pad-to:,output:,devicetree-loadaddr:,cpu:,action:,serial-interface:,auto-mode:,burn-fuses:,settings:,image-path:,key-length:,master-key:,check-nboot-for-keys: -- "$@"`
 
 eval set -- "$OPTS"
 
@@ -51,6 +51,14 @@ do
 	    ;;
 	--key-length )
 	    KEY_LENGTH="$2"
+	    shift 2
+	    ;;
+	--master-key )
+	    MASTER_KEY="$2"
+	    shift 2
+	    ;;
+	--check-nboot-for-keys )
+	    check_nboot_for_keys="$2"
 	    shift 2
 	    ;;
 	* ) break
@@ -115,7 +123,8 @@ case "$ACTION" in
 	;;
 esac
 
-# when there is no "DEVTREE_LOAD_ADDR" parameter, set a default value (depending on the cpu)
+# when there is no "DEVTREE_LOAD_ADDR" parameter, set a default value
+# (depending on the cpu)
 
 if [ -z "$DEVTREE_LOAD_ADDR" ]; then
     case "$CPU_ARCH" in
@@ -134,7 +143,8 @@ if [ -z "$DEVTREE_LOAD_ADDR" ]; then
     esac
 fi
 
-# when there is no "PAD_SIZE" parameter, set a defalut value (depending on the cpu)
+# when there is no "PAD_SIZE" parameter, set a defalut value
+# (depending on the cpu)
 
 if [ -z "$PAD_SIZE" ]; then
     case "$CPU_ARCH" in
@@ -158,18 +168,22 @@ fi
 
 
 if [ "$ACTION" == "create" ]; then
-    ./createCertificates.sh c        # call script for creating the certificates
+    # call script for creating the certificates
+    ./createCertificates.sh c
     exit 0
 fi
 
 if [ "$ACTION" == "sign" ]; then
-    ./signImage.sh "$CPU_ARCH" "$OUTPUT_NAME" "$DEVTREE_LOAD_ADDR" "$image_path"   # call script for signing an image
+    # call script for signing an image
+    ./signImage.sh "$CPU_ARCH" "$OUTPUT_NAME" "$LOAD_ADDR" "$image_path" \
+                   "$MASTER_KEY"
     if [ "$?" == "0" ]; then
 	exit 0
     else
 	exit 1
     fi
 elif [ "$ACTION" == "encrypt" ]; then
-    ./encryptImage.sh "$CPU_ARCH" "$OUTPUT_NAME" "$DEVTREE_LOAD_ADDR" "$image_path" "$KEY_LENGTH"
-
+    ./encryptImage.sh "$CPU_ARCH" "$OUTPUT_NAME" "$LOAD_ADDR" "$image_path" \
+                      "$KEY_LENGTH" "$MASTER_KEY" "$check_nboot_for_keys"
+    exit $?
 fi
