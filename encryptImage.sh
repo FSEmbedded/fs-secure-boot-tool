@@ -361,11 +361,13 @@ ${CSF_ADDR:0:2}`
         -e "s/###SIZE_DEC###/$SIZE_DEC/"  boot_in.csf > boot_in.csf_temp
 
     if [ "$MASTER_KEY" == "z" ] && [[ "$1" != *"nboot"* ]]; then
-	sed -e '44,$s/#//' -e "s/###MASTER_KEY###/2/"  boot_in.csf_temp > \
-	temp.csf
+        sed -e "s/###MASTER_KEY###/2/" boot_in.csf_temp > temp.csf
+        sed -e '44,$s/#//' temp.csf > boot_in.csf_temp
+        cp -r boot_in.csf_temp temp.csf
     else
-	sed -e '44,$s/#//' -e "s/###MASTER_KEY###/0/"  boot_in.csf_temp > \
-	temp.csf
+        sed -e "s/###MASTER_KEY###/0/" boot_in.csf_temp > temp.csf
+        sed -e '44,$s/#//' temp.csf > boot_in.csf_temp
+        cp -r boot_in.csf_temp temp.csf
     fi
     rm boot_in.csf_temp
     # check how the stage after nboot is encrypted either ZMK or OTPMK
