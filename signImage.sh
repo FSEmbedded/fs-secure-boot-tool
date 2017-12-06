@@ -255,12 +255,12 @@ function setSignedCSFfile()
 	if [ "$OUTPUT_NAME" == "nboot_for_key.bin" ]; then
 	    if [ "$MASTER_KEY" == "z" ]; then
 	        sed -e '15,20s/#//' boot_in.csf > boot_temp
-	        sed -e '28,43s/#//' boot_temp > boot_in.csf
-	        OUTPUT_NAME="nboot_for_key_zmk.bin"
+	        sed -e '21,36s/#//' boot_temp > boot_in.csf
+	        OUTPUT_NAME="${IMAGE_NAME}_for_key_zmk.bin"
 	    else
 	        sed -e '15,17s/#//' boot_in.csf > boot_temp
 	        cp boot_temp boot_in.csf
-	        OUTPUT_NAME="nboot_for_key_otpmk.bin"
+	        OUTPUT_NAME="${IMAGE_NAME}_for_key_otpmk.bin"
 	    fi
 	    rm boot_temp
 	fi
@@ -556,3 +556,4 @@ else
     printf "$\n{LIGHT_RED}Error, aborting...${NORMAL}\b\n"
     exit 1
 fi
+

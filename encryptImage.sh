@@ -72,7 +72,7 @@ function checkEncryptionTool()
 ###############################################################################
 function checkNBootForEncryption()
 {
-    if [ ! -f ./nboot_for_key*.bin ]; then
+    if [ ! -f ./nboot*_for_key*.bin ]; then
 	sed -e "s/###INDEX###/0/" -e "s/###NUM###/1/" ./boot_raw_edited > \
 	boot_in.csf
 	printf "Enter NBoot image path ${BOLD}(absolute address!)${NORMAL}\b\n"
@@ -222,7 +222,6 @@ function getImageType()
 ${KERNEL_LOAD_ADDR:2:2}${KERNEL_LOAD_ADDR:0:2}`
 	IMAGE_NAME="uImage"
 	LOAD_ADDRESS="$temp_addr"
-	echo "LOAD_ADDRESS ${LOAD_ADDRESS}"
     elif [ "$MAGIC_NUMBER_E" == "43454345" ] || \
          [ "$MAGIC_NUMBER_M4" == "4d344d34" ]; then
 	printf "Not yet supported!\b\n"
@@ -360,7 +359,7 @@ ${CSF_ADDR:0:2}`
         -e "s/###ADDR_DEC###/$ADDR_DEC/" -e "s/###OFFSET_ENC###/$OFFSET_ENC/" \
         -e "s/###SIZE_DEC###/$SIZE_DEC/"  boot_in.csf > boot_in.csf_temp
 
-    if [ "$MASTER_KEY" == "z" ] && [[ "$1" != *"nboot"* ]]; then
+    if [ "$MASTER_KEY" == "z" ]; then
         sed -e "s/###MASTER_KEY###/2/" boot_in.csf_temp > temp.csf
         sed -e '44,$s/#//' temp.csf > boot_in.csf_temp
         cp -r boot_in.csf_temp temp.csf
@@ -370,12 +369,12 @@ ${CSF_ADDR:0:2}`
         cp -r boot_in.csf_temp temp.csf
     fi
     rm boot_in.csf_temp
-    # check how the stage after nboot is encrypted either ZMK or OTPMK
-#    if [[ "$1" == *"nboot"* ]]; then
-#	sed -e '18,20s/#//' -e '28,$s/#//' temp.csf > boot_in.csf
-#    else
+    # check if NBoot use ZMK then set ZMK key
+    if [[ "$1" == *"nboot"* ]] && [ "$MASTER_KEY" == "z" ]; then
+	sed -e '18,20s/#//' -e '21,36s/#//' temp.csf > boot_in.csf
+    else
         cp -r temp.csf boot_in.csf
-#    fi
+    fi
 
     cst-2.3.2/linux64/cst_encrypt --o csf.bin --i  boot_in.csf 1>/dev/null
 
@@ -721,3 +720,4 @@ if [ "$success" == "false" ]; then
 fi
 
 exit 0
+

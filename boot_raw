@@ -18,13 +18,6 @@
 #[Unlock]
 #    Engine = CAAM
 #    Features = RNG
-[Install Key]
-    File = "./cst-2.3.2/crts/IMG###NUM###_1_sha256_###BIT###_65537_v3_usr_crt.pem"
-    Verification index = ###INDEX###
-    Target index = 2
-[Authenticate Data]
-    Verification index = 2
-    Blocks = ###ADDR### ###OFFSET### ###SIZE### "###BOOT###"
 #[Write Data]
 #    Width = 4
 #    Address Data = 0x020cc004 0x80000000, \
@@ -41,6 +34,13 @@
 #		   0x020cc03c 0x0000000a, \
 #          0x020cc000 0x00000203, \
 #          0x020cc034 0x00000003
+[Install Key]
+    File = "./cst-2.3.2/crts/IMG###NUM###_1_sha256_###BIT###_65537_v3_usr_crt.pem"
+    Verification index = ###INDEX###
+    Target index = 2
+[Authenticate Data]
+    Verification index = 2
+    Blocks = ###ADDR### ###OFFSET### ###SIZE### "###BOOT###"
 #[Install Secret Key]
 #    Verification index = ###MASTER_KEY###
 #    Target index = 0
