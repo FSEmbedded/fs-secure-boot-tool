@@ -8,7 +8,7 @@ LIGHT_RED='\033[0;31m'
 CLEAR="\ec"
 
 
-printf "Do you want to ${BOLD}create${NORMAL} certificates, ${BOLD}sign${NORMAL} an image or ${BOLD}encrypt${NORMAL} an image ${BOLD}(c/s/e)${NORMAL}?\b\n"
+printf "Do you want to ${BOLD}create${NORMAL} certificates, create ${BOLD}jtag${NORMAL} response key, ${BOLD}sign${NORMAL} an image or ${BOLD}encrypt${NORMAL} an image ${BOLD}(c/j/s/e)${NORMAL}?\b\n"
 printf "Note: When an image is encrypted it's also signed!\b\n"
 read action
 
@@ -19,6 +19,31 @@ fi
 
 if [ "$action" == "c" ]; then
     ./makeAction.sh --settings=$settings --action=$action
+    exit 0
+elif [ "$action" == "j" ]; then
+    chrlen=0
+    #read JTAG responsible key
+    printf "Please enter the response key ${BOLD}(7 Byte) (Little-Endian)${NORMAL} and confirm it with enter\b\n"
+
+    #check if length is correct
+    while [ $chrlen != 14 ]
+    do
+        read jtag_key
+
+        chrlen=${#jtag_key}
+
+        if [ $chrlen != 14 ]; then
+            printf "wrong length, try again!\b\n"
+        fi
+    done
+
+    #check if values are hex values
+    if ! [[ $jtag_key =~ [a-f0-9]{$chrlen} ]]; then
+        printf "No hex value, exit!"
+        exit 1
+    fi
+
+    ./makeAction.sh --action="$action" --jtag-resp-key="$jtag_key"
     exit 0
 fi
 

@@ -2,7 +2,7 @@
 
 # handle script parameters
 
-OPTS=`getopt -n 'generate'  -o: --long pad-to:,output:,loadaddr:,cpu:,action:,serial-interface:,auto-mode:,burn-fuses:,settings:,image-path:,key-length:,master-key:,check-nboot-for-keys: -- "$@"`
+OPTS=`getopt -n 'generate'  -o: --long pad-to:,output:,loadaddr:,cpu:,action:,serial-interface:,auto-mode:,burn-fuses:,settings:,image-path:,key-length:,master-key:,check-nboot-for-keys:,jtag-resp-key: -- "$@"`
 
 eval set -- "$OPTS"
 
@@ -61,6 +61,10 @@ do
 	    check_nboot_for_keys="$2"
 	    shift 2
 	    ;;
+	--jtag-resp-key )
+	    jtag_resp_key="$2"
+	    shift 2
+	    ;;
 	* ) break
 	    ;;
     esac
@@ -115,6 +119,9 @@ case "$ACTION" in
     c )
 	ACTION=create
 	;;
+    j )
+        ACTION=jtag
+        ;;
     s )
 	ACTION=sign
 	;;
@@ -151,6 +158,10 @@ if [ "$ACTION" == "create" ]; then
     # call script for creating the certificates
     ./createCertificates.sh c
     exit 0
+fi
+
+if [ "$ACTION" == "jtag" ]; then
+    ./jtag.sh "$jtag_resp_key"
 fi
 
 if [ "$ACTION" == "sign" ]; then
