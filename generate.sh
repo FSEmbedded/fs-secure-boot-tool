@@ -32,6 +32,7 @@ if [ "$settings" == "c" ]; then
     read name
 
     printf "Enter Loadaddress (Hex):\b\n"
+    printf "Note: Type your Loadaddress without 0x at the beginning!\b\n"
     read load
 
 fi
@@ -69,7 +70,7 @@ printf "Enter image path ${BOLD}(absolute path!)${NORMAL}\b\n"
 read image_path
 
 if [ "$action" == "s" ]; then
-    ./makeAction.sh --devicetree-loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path"
+    ./makeAction.sh --loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path"
     exit 0
 
 elif [ "$action" == "e" ]; then
@@ -91,7 +92,7 @@ elif [ "$action" == "e" ]; then
 	exit 1
     fi
     check_nboot_for_keys=false
-    ./makeAction.sh --devicetree-loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --key-length="$key_length" --master-key="$master_key" --check-nboot-for-keys="$check_nboot_for_keys"
+    ./makeAction.sh --loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --key-length="$key_length" --master-key="$master_key" --check-nboot-for-keys="$check_nboot_for_keys"
 fi
 
 exit 0

@@ -23,8 +23,9 @@ function handleParameters()
 {
     CPU_ARCH=$1
     OUTPUT_NAME=$2
-    DEVTREE_LOAD_ADDR=$3
+    CUSTOM_LOAD_ADDRESS=$3
     IMAGE_PATH=$4
+    MASTER_KEY=$5
 }
 
 ###############################################################################
@@ -122,7 +123,6 @@ function getImageType()
     local NBOOT_LOADADDR=`hexdump -n 4 -s 0x414 -e '"%x\n"' "$1"`
     local MAGIC_NUMBER_KERNEL=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$1"`
     local MAGIC_NUMBER_DEVTREE=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$1"`
-
     local UBOOT_NUMBER=`hexdump -n 4 -s 0x20 -e '"%x\n"' "$1"`
     local TEMP_VAR=$(( 0x$UBOOT_NUMBER & 0xFFFF0000 ))
     local UBOOT_CHECK_NUM=`printf "%x" "$TEMP_VAR"`
@@ -175,6 +175,10 @@ ${KERNEL_LOAD_ADDR:2:2}${KERNEL_LOAD_ADDR:0:2}`
     else
 	printf "Not an image file!\b\n"
 	exit 1
+    fi
+
+    if [ -n "$CUSTOM_LOAD_ADDRESS" ]; then
+        LOAD_ADDRESS=$CUSTOM_LOAD_ADDRESS
     fi
 }
 
@@ -246,15 +250,17 @@ function setSignedCSFfile()
 	    TARGET=nbootvyb_signed.bin
 	fi
 
-	local IMAGE_SIZE=0x10000
+	IMAGE_SIZE=0x10000
 
 	if [ "$OUTPUT_NAME" == "nboot_for_key.bin" ]; then
 	    if [ "$MASTER_KEY" == "z" ]; then
 	        sed -e '15,20s/#//' boot_in.csf > boot_temp
 	        sed -e '28,43s/#//' boot_temp > boot_in.csf
+	        OUTPUT_NAME="nboot_for_key_zmk.bin"
 	    else
 	        sed -e '15,17s/#//' boot_in.csf > boot_temp
 	        cp boot_temp boot_in.csf
+	        OUTPUT_NAME="nboot_for_key_otpmk.bin"
 	    fi
 	    rm boot_temp
 	fi

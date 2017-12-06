@@ -2,7 +2,7 @@
 
 # handle script parameters
 
-OPTS=`getopt -n 'generate'  -o: --long pad-to:,output:,devicetree-loadaddr:,cpu:,action:,serial-interface:,auto-mode:,burn-fuses:,settings:,image-path:,key-length:,master-key:,check-nboot-for-keys: -- "$@"`
+OPTS=`getopt -n 'generate'  -o: --long pad-to:,output:,loadaddr:,cpu:,action:,serial-interface:,auto-mode:,burn-fuses:,settings:,image-path:,key-length:,master-key:,check-nboot-for-keys: -- "$@"`
 
 eval set -- "$OPTS"
 
@@ -17,8 +17,8 @@ do
 	    OUTPUT_NAME="$2"
 	    shift 2
 	    ;;
-	--devicetree-loadaddr )
-	    DEVTREE_LOAD_ADDR="$2"
+	--loadaddr )
+	    LOAD_ADDR="$2"
 	    shift 2
 	    ;;
 	--cpu )
@@ -122,26 +122,6 @@ case "$ACTION" in
 	ACTION=encrypt
 	;;
 esac
-
-# when there is no "DEVTREE_LOAD_ADDR" parameter, set a default value
-# (depending on the cpu)
-
-if [ -z "$DEVTREE_LOAD_ADDR" ]; then
-    case "$CPU_ARCH" in
-	SDQ )
-	    DEVTREE_LOAD_ADDR=11000000
-	    ;;
-	SX )
-	    DEVTREE_LOAD_ADDR=81000000
-	    ;;
-	UL )
-	    DEVTREE_LOAD_ADDR=81000000
-	    ;;
-	VYB )
-	    DEVTREE_LOAD_ADDR=81000000
-	    ;;
-    esac
-fi
 
 # when there is no "PAD_SIZE" parameter, set a defalut value
 # (depending on the cpu)

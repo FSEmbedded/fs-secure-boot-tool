@@ -22,7 +22,7 @@ function handleParameters()
 {
     CPU_ARCH=$1
     OUTPUT_NAME=$2
-    DEVTREE_LOAD_ADDR=$3
+    CUSTOM_LOAD_ADDRESS=$3
     IMAGE_PATH=$4
     KEY_LENGTH=$5
     MASTER_KEY=$6
@@ -237,6 +237,10 @@ ${KERNEL_LOAD_ADDR:2:2}${KERNEL_LOAD_ADDR:0:2}`
     else
 	printf "Not an image file!\b\n"
 	exit 1
+    fi
+
+    if [ -n "$CUSTOM_LOAD_ADDRESS" ]; then
+        LOAD_ADDRESS=$CUSTOM_LOAD_ADDRESS
     fi
 }
 
