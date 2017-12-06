@@ -42,7 +42,7 @@
 #          0x020cc000 0x00000203, \
 #          0x020cc034 0x00000003
 #[Install Secret Key]
-#    Verification index = 2
+#    Verification index = ###MASTER_KEY###
 #    Target index = 0
 #    Key = "dek.bin"
 #    Key Length = ###length###
