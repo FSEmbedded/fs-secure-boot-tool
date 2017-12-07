@@ -123,55 +123,35 @@ function getImageType()
     local NBOOT_LOADADDR=`hexdump -n 4 -s 0x414 -e '"%x\n"' "$1"`
     local MAGIC_NUMBER_KERNEL=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$1"`
     local MAGIC_NUMBER_DEVTREE=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$1"`
+
     local UBOOT_NUMBER=`hexdump -n 4 -s 0x20 -e '"%x\n"' "$1"`
     local TEMP_VAR=$(( 0x$UBOOT_NUMBER & 0xFFFF0000 ))
     local UBOOT_CHECK_NUM=`printf "%x" "$TEMP_VAR"`
 
     if [ "$MAGIC_NUMBER_N" == "402000d1" ]; then
         LOAD_ADDRESS="$NBOOT_LOADADDR"
-	if [ "$NBOOT_LOADADDR" == "907400" ]; then
-	    if [ "$CPU_ARCH" == "SX" ]; then
-	        IMAGE_NAME="nboot_sx"
-	    elif [ "$CPU_ARCH" == "UL" ]; then
-	        IMAGE_NAME="nboot_ul"
-	    else
-		IMAGE_NAME="nboot_imx"
-	    fi
-	elif [ "$NBOOT_LOADADDR" == "3f040400" ]; then
-	    IMAGE_NAME="nboot_vyb"
-	fi
+        IMAGE_NAME="nboot_${CPU_ARCH}"
     elif [ "$MAGIC_NUMBER_U" == "12345678" ]; then
         LOAD_ADDRESS="$UBOOT_CHECK_NUM"
-	if [ "$UBOOT_CHECK_NUM" == "10100000" ]; then
-	    IMAGE_NAME="uboot_imx"
-	elif [ "$UBOOT_CHECK_NUM" == "80100000" ]; then
-	    if [ "$CPU_ARCH" == "SX" ]; then
-	        IMAGE_NAME="uboot_sx"
-	    elif [ "$CPU_ARCH" == "UL" ]; then
-	        IMAGE_NAME="uboot_ul"
-	    else
-		IMAGE_NAME="uboot_vyb"
-	    fi
-	fi
+        IMAGE_NAME="uboot_${CPU_ARCH}"
     elif [ "$MAGIC_NUMBER_KERNEL" == "56190527" ]; then
 	local KERNEL_LOAD_ADDR=`hexdump -n 4 -s 0x14 -e '"%08x\n"' "$1"`
 	# change endianess
 	local temp_addr=`echo ${KERNEL_LOAD_ADDR:6:2}${KERNEL_LOAD_ADDR:4:2}\
 ${KERNEL_LOAD_ADDR:2:2}${KERNEL_LOAD_ADDR:0:2}`
-	IMAGE_NAME="uImage"
 	LOAD_ADDRESS="$temp_addr"
-	echo "LOAD_ADDRESS ${LOAD_ADDRESS}"
-    elif [ "$MAGIC_NUMBER_E" == "43454345" ] || \
-         [ "$MAGIC_NUMBER_M4" == "4d344d34" ]; then
-	printf "Not yet supported!\b\n"
-	exit 1
+	IMAGE_NAME="uImage_${CPU_ARCH}"
     elif [ "$MAGIC_NUMBER_DEVTREE" == "edfe0dd0" ]; then
-        IMAGE_NAME="devtree"
-        if [ "$CPU_ARCH" == "SDQ" ]; then
+        if [ "$CPU_ARCH" == "sdq" ]; then
             LOAD_ADDRESS=11000000
         else
             LOAD_ADDRESS=81000000
         fi
+        IMAGE_NAME="devtree"
+    elif [ "$MAGIC_NUMBER_E" == "43454345" ] || \
+         [ "$MAGIC_NUMBER_M4" == "4d344d34" ]; then
+	printf "Not yet supported!\b\n"
+	exit 1
     else
 	printf "Not an image file!\b\n"
 	exit 1
@@ -230,47 +210,37 @@ function setSignedCSFfile()
     local ADDR=0x"$LOAD_ADDRESS"
     local IMAGE_SIZE=0x$BOOT_DATA_LENGTH
     local SIZE=$(stat -c %s "$image")
+    local OFFSET=0x0
     SIZE=0x`printf "%08x" "$SIZE"`
+    TARGET="${IMAGE_NAME}_signed"
 
     if [[ "$1" == *"nboot"* ]]; then
-        local OFFSET=0x400
+        OFFSET=0x400
         local TRUNCATE_SIZE=`grep -a -o -b "##CSF##" "$image" | \
                              sed -e "s/:.*//"`
 	local TEMP_SIZE=0x`printf "%x" "$TRUNCATE_SIZE"`
 	let TEMP_SIZE="$TEMP_SIZE - 0x400"
 	local SIZE=0x`printf "%x" "$TEMP_SIZE"`
 
-	if [ "$CPU_ARCH" == "SX" ]; then
-	    TARGET=nbootsx_signed.bin
-	elif [ "$CPU_ARCH" == "UL" ]; then
-	    TARGET=nbootul_signed.bin
-	elif [ "$CPU_ARCH" == "SDQ" ]; then
-	    TARGET=nbootimx6_signed.bin
-	else
-	    TARGET=nbootvyb_signed.bin
-	fi
-
+        # set output name
+        TARGET="${TARGET}.bin"
 	IMAGE_SIZE=0x10000
 
 	if [ "$OUTPUT_NAME" == "nboot_for_key.bin" ]; then
-	    if [ "$MASTER_KEY" == "z" ]; then
+	    if [ "$MASTER_KEY" == "zmk" ]; then
 	        sed -e '15,20s/#//' boot_in.csf > boot_temp
 	        sed -e '21,36s/#//' boot_temp > boot_in.csf
-	        OUTPUT_NAME="${IMAGE_NAME}_for_key_zmk.bin"
 	    else
 	        sed -e '15,17s/#//' boot_in.csf > boot_temp
 	        cp boot_temp boot_in.csf
-	        OUTPUT_NAME="${IMAGE_NAME}_for_key_otpmk.bin"
 	    fi
+	    OUTPUT_NAME="${IMAGE_NAME}_for_key_${MASTER_KEY}.bin"
 	    rm boot_temp
 	fi
     else
-        local OFFSET=0x0
         if [[ "$1" == *"uboot"* ]]; then
-            TARGET=`echo "${1}_signed.nb0"`
-        elif [ "$1" == uImage ]; then
-	    TARGET="${1}_${CPU_ARCH}_signed"
-	else
+             TARGET="${TARGET}.nb0"
+        elif [ "$1" == "devtree" ]; then
 	    TARGET="${image}_signed"
         fi
     fi
@@ -281,7 +251,6 @@ function setSignedCSFfile()
     mv boot_in.csf_temp boot_in.csf
 
     # generate no output on stdout
-
     cst-2.3.2/linux64/cst --o csf.bin --i  boot_in.csf 1>/dev/null
 
     if [[ "$1" == *"nboot"* ]]; then
@@ -320,7 +289,7 @@ function createIVTHeader()
     local SELF_POINTER="$LOAD_ADDRESS"
     let local BOOT_DATA="$LOAD_ADDRESS + 20"
 
-    if [ "$2" == "uImage" ] || [ "$2" == "devtree" ]; then
+    if [[ "$2" == *"uImage"* ]] || [ "$2" == "devtree" ]; then
 	let local ENTRY_POINT="$LOAD_ADDRESS + 40"
     else
     	let local ENTRY_POINT="$BOOT_DATA"
@@ -381,7 +350,7 @@ ${SELF_POINTER:0:2}`
     final=${temp::-2}
     echo -n -e $final >> $IVT_TARGET
 
-    if [ "$2" == "uImage" ] || [ "$2" == "devtree" ]; then
+    if [[ "$2" == *"uImage"* ]] || [ "$2" == "devtree" ]; then
 	CSF_ADDR=`printf "%d "$(($CSF_ADDR-32))`
     fi
 
@@ -420,7 +389,7 @@ function createBootDataHeader()
     local ZEROS=00000000
     local FF_PAD=FFFFFFFF
     local DATA_TARGET=`echo "${2}_boot_data.bin"`
-    if [ "$2" == "uImage" ]; then
+    if [[ "$2" == *"uImage"* ]]; then
 	local temp_addr=`echo -n -e $LOAD_ADDRESS | sed -e 's/.\{2\}/&\\\x/g'`
     else
         local temp_addr=`echo ${LOAD_ADDRESS:6:2}${LOAD_ADDRESS:4:2}\
@@ -428,7 +397,7 @@ ${LOAD_ADDRESS:2:2}${LOAD_ADDRESS:0:2}`
         temp_addr=`echo -n -e $temp_addr | sed -e 's/.\{2\}/&\\\x/g'`
     fi
 
-    runFakeCST "$1" "$2" "signed"
+    runFakeCST "$2"
 
     local temp_length=`echo ${BOOT_DATA_LENGTH:6:2}${BOOT_DATA_LENGTH:4:2}\
 ${BOOT_DATA_LENGTH:2:2}${BOOT_DATA_LENGTH:0:2}`
@@ -478,8 +447,7 @@ ${BOOT_DATA_LENGTH:2:2}${BOOT_DATA_LENGTH:0:2}`
 ###############################################################################
 # function: runFakeCST()
 #
-# parameters: $1: image
-#             $2: image type
+# parameters: $1: image type
 #
 #
 # return:     BOOT_DATA_LENGTH (global variable!!)
@@ -495,12 +463,12 @@ ${BOOT_DATA_LENGTH:2:2}${BOOT_DATA_LENGTH:0:2}`
 
 runFakeCST()
 {
-	case $2 in
+	case $1 in
 	    *nboot*)
                 BOOT_DATA_LENGTH=10000
 	        BOOT_DATA_LENGTH=`printf "%08d" $BOOT_DATA_LENGTH`
                 ;;
-            uboot_vyb)
+            *uboot_vyb*)
             	BOOT_DATA_LENGTH=60000
 	        BOOT_DATA_LENGTH=`printf "%08d" $BOOT_DATA_LENGTH`
 	        ;;

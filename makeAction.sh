@@ -100,16 +100,16 @@ esac
 
 case "$CPU_ARCH" in
     1 )
-	CPU_ARCH=SDQ
+	CPU_ARCH=sdq
 	;;
     2 )
-	CPU_ARCH=SX
+	CPU_ARCH=sx
 	;;
     3 )
-	CPU_ARCH=UL
+	CPU_ARCH=ul
 	;;
     4 )
-	CPU_ARCH=VYB
+	CPU_ARCH=vyb
 	;;
 esac
 
@@ -150,6 +150,12 @@ if [ -z "$PAD_SIZE" ]; then
     esac
 fi
 
+# parse master key value
+if [ "$MASTER_KEY" == "o" ] || [ "$MASTER_KEY" == "otpmk" ]; then
+    MASTER_KEY="otpmk"
+else
+    MASTER_KEY="zmk"
+fi
 
 # call subscripts (depending on "ACTION")
 

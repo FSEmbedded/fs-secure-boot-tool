@@ -72,16 +72,15 @@ function checkEncryptionTool()
 ###############################################################################
 function checkNBootForEncryption()
 {
-    if [ ! -f ./nboot*_for_key*.bin ]; then
+    local filename="nboot_${CPU_ARCH}_for_key_${MASTER_KEY}.bin"
+    if [ ! -f ${filename} ]; then
 	sed -e "s/###INDEX###/0/" -e "s/###NUM###/1/" ./boot_raw_edited > \
 	boot_in.csf
 	printf "Enter NBoot image path ${BOLD}(absolute address!)${NORMAL}\b\n"
 	printf "\t${BOLD}This is required since we need to change settings in
-	 the${NOMRAL}\b\n"
-	printf "\t${BOLD}Command Sequence File in order to generate the keys.
+	the${NOMRAL}Command Sequence File in order to generate the keys.
 	${NORMAL}\b\n"
 	read nboot_path
-
 	./makeAction.sh --output=nboot_for_key.bin --cpu="$CPU_ARCH" \
 	--action=s --image-path="$nboot_path" --master-key="$MASTER_KEY"
 	exit 1
@@ -191,48 +190,28 @@ function getImageType()
 
     if [ "$MAGIC_NUMBER_N" == "402000d1" ]; then
         LOAD_ADDRESS="$NBOOT_LOADADDR"
-	if [ "$NBOOT_LOADADDR" == "907400" ]; then
-	    if [ "$CPU_ARCH" == "SX" ]; then
-	        IMAGE_NAME="nboot_sx"
-	    elif [ "$CPU_ARCH" == "UL" ]; then
-	        IMAGE_NAME="nboot_ul"
-	    else
-		IMAGE_NAME="nboot_imx"
-	    fi
-	elif [ "$NBOOT_LOADADDR" == "3f040400" ]; then
-	    IMAGE_NAME="nboot_vyb"
-	fi
+        IMAGE_NAME="nboot_${CPU_ARCH}"
     elif [ "$MAGIC_NUMBER_U" == "12345678" ]; then
         LOAD_ADDRESS="$UBOOT_CHECK_NUM"
-	if [ "$UBOOT_CHECK_NUM" == "10100000" ]; then
-	    IMAGE_NAME="uboot_imx"
-	elif [ "$UBOOT_CHECK_NUM" == "80100000" ]; then
-	    if [ "$CPU_ARCH" == "SX" ]; then
-	        IMAGE_NAME="uboot_sx"
-	    elif [ "$CPU_ARCH" == "UL" ]; then
-	        IMAGE_NAME="uboot_ul"
-	    else
-		IMAGE_NAME="uboot_vyb"
-	    fi
-	fi
+        IMAGE_NAME="uboot_${CPU_ARCH}"
     elif [ "$MAGIC_NUMBER_KERNEL" == "56190527" ]; then
 	local KERNEL_LOAD_ADDR=`hexdump -n 4 -s 0x14 -e '"%08x\n"' "$1"`
 	# change endianess
 	local temp_addr=`echo ${KERNEL_LOAD_ADDR:6:2}${KERNEL_LOAD_ADDR:4:2}\
 ${KERNEL_LOAD_ADDR:2:2}${KERNEL_LOAD_ADDR:0:2}`
-	IMAGE_NAME="uImage"
 	LOAD_ADDRESS="$temp_addr"
-    elif [ "$MAGIC_NUMBER_E" == "43454345" ] || \
-         [ "$MAGIC_NUMBER_M4" == "4d344d34" ]; then
-	printf "Not yet supported!\b\n"
-	exit 1
+	IMAGE_NAME="uImage_${CPU_ARCH}"
     elif [ "$MAGIC_NUMBER_DEVTREE" == "edfe0dd0" ]; then
-        IMAGE_NAME="devtree"
-        if [ "$CPU_ARCH" == "SDQ" ]; then
+        if [ "$CPU_ARCH" == "sdq" ]; then
             LOAD_ADDRESS=11000000
         else
             LOAD_ADDRESS=81000000
         fi
+        IMAGE_NAME="devtree"
+    elif [ "$MAGIC_NUMBER_E" == "43454345" ] || \
+         [ "$MAGIC_NUMBER_M4" == "4d344d34" ]; then
+	printf "Not yet supported!\b\n"
+	exit 1
     else
 	printf "Not an image file!\b\n"
 	exit 1
@@ -294,6 +273,7 @@ function setEncryptedCSFFile()
     local SIZE=0x100
     local ADDR_DEC=$(($ADDR + $SIZE))
     ADDR_DEC=0x`printf "%08x" "$ADDR_DEC"`
+    TARGET="${IMAGE_NAME}_enc_${MASTER_KEY}"
 
     cp boot_in.csf boot_in.csf_temp
 
@@ -327,23 +307,12 @@ ${CSF_ADDR:0:2}`
 	truncate -s $TRUNCATE_SIZE $image
 
 	# set output name
-	if [ "$CPU_ARCH" == "SX" ]; then
-	    TARGET=nbootsx_enc.bin
-	elif [ "$CPU_ARCH" == "UL" ]; then
-	    TARGET=nbootul_enc.bin
-	elif [ "$CPU_ARCH" == "SDQ" ]; then
-	    TARGET=nbootimx6_enc.bin
-	else
-	    TARGET=nbootvyb_enc.bin
-	fi
-
+	TARGET="${TARGET}.bin"
 	IMAGE_SIZE=0x10000
     else
         if [[ "$1" == *"uboot"* ]]; then
-            TARGET=`echo "${1}_enc.nb0"`
-        elif [ "$1" == uImage ]; then
-	    TARGET="${1}_${CPU_ARCH}_enc"
-	else
+             TARGET="${TARGET}.nb0"
+        elif [ "$1" == "devtree" ]; then
 	    TARGET="${image}_enc"
         fi
     fi
@@ -359,7 +328,7 @@ ${CSF_ADDR:0:2}`
         -e "s/###ADDR_DEC###/$ADDR_DEC/" -e "s/###OFFSET_ENC###/$OFFSET_ENC/" \
         -e "s/###SIZE_DEC###/$SIZE_DEC/"  boot_in.csf > boot_in.csf_temp
 
-    if [ "$MASTER_KEY" == "z" ]; then
+    if [ "$MASTER_KEY" == "zmk" ]; then
         sed -e "s/###MASTER_KEY###/2/" boot_in.csf_temp > temp.csf
         sed -e '44,$s/#//' temp.csf > boot_in.csf_temp
         cp -r boot_in.csf_temp temp.csf
@@ -370,12 +339,13 @@ ${CSF_ADDR:0:2}`
     fi
     rm boot_in.csf_temp
     # check if NBoot use ZMK then set ZMK key
-    if [[ "$1" == *"nboot"* ]] && [ "$MASTER_KEY" == "z" ]; then
+    if [[ "$1" == *"nboot"* ]] && [ "$MASTER_KEY" == "zmk" ]; then
 	sed -e '18,20s/#//' -e '21,36s/#//' temp.csf > boot_in.csf
     else
         cp -r temp.csf boot_in.csf
     fi
 
+    # generate no output on stdout
     cst-2.3.2/linux64/cst_encrypt --o csf.bin --i  boot_in.csf 1>/dev/null
 
     if [ "$?" != "0" ]; then
@@ -566,7 +536,7 @@ ${LOAD_ADDRESS:2:2}${LOAD_ADDRESS:0:2}`
         temp_addr=`echo -n -e $temp_addr | sed -e 's/.\{2\}/&\\\x/g'`
     fi
 
-    runFakeCST "$1" "$2" "enc"
+    runFakeCST "$2"
 
     local temp_length=`echo ${BOOT_DATA_LENGTH:6:2}${BOOT_DATA_LENGTH:4:2}\
 ${BOOT_DATA_LENGTH:2:2}${BOOT_DATA_LENGTH:0:2}`
@@ -615,8 +585,7 @@ ${BOOT_DATA_LENGTH:2:2}${BOOT_DATA_LENGTH:0:2}`
 ###############################################################################
 # function: runFakeCST()
 #
-# parameters: $1: image
-#             $2: image type
+# parameters: $1: image type
 #
 #
 # return:     BOOT_DATA_LENGTH (global variable!!)
@@ -631,12 +600,12 @@ ${BOOT_DATA_LENGTH:2:2}${BOOT_DATA_LENGTH:0:2}`
 ###############################################################################
 runFakeCST()
 {
-	case $2 in
+	case $1 in
 	    *nboot*)
                 BOOT_DATA_LENGTH=10000
 	        BOOT_DATA_LENGTH=`printf "%08d" $BOOT_DATA_LENGTH`
                 ;;
-            uboot_vyb)
+            *uboot_vyb*)
             	BOOT_DATA_LENGTH=60000
 	        BOOT_DATA_LENGTH=`printf "%08d" $BOOT_DATA_LENGTH`
 	        ;;
