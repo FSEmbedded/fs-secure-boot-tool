@@ -76,10 +76,9 @@ function checkNBootForEncryption()
     if [ ! -f ${filename} ]; then
 	sed -e "s/###INDEX###/0/" -e "s/###NUM###/1/" ./boot_raw_edited > \
 	boot_in.csf
-	printf "Enter NBoot image path ${BOLD}(absolute address!)${NORMAL}\b\n"
-	printf "\t${BOLD}This is required since we need to change settings in
-	the${NOMRAL}Command Sequence File in order to generate the keys.
-	${NORMAL}\b\n"
+	printf "Enter NBoot image path (absolute address!)\b\n"
+	printf "\tThis is required since we need to change settings in
+	the Command Sequence File in order to generate the keys.\b\n"
 	read nboot_path
 	./makeAction.sh --output=nboot_for_key.bin --cpu="$CPU_ARCH" \
 	--action=s --image-path="$nboot_path" --master-key="$MASTER_KEY"
