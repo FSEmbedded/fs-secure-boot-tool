@@ -521,7 +521,7 @@ if [ "$?" == "0" ]; then
            \r" "$TARGET"
     exit 0
 else
-    printf "$\n{LIGHT_RED}Error, aborting...${NORMAL}\b\n"
+    printf "\n${LIGHT_RED}Error, aborting...${NORMAL}\b\n"
     exit 1
 fi
 
