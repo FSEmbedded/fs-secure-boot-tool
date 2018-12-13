@@ -358,8 +358,18 @@ ${CSF_ADDR:0:2}`
     rm $image
     rm boot_in.csf
 
-    objcopy -I binary -O binary --pad-to=$IMAGE_SIZE --gap-fill=0xFF $TARGET \
-    $TARGET
+    # check if NBoot image bigger than 0xd800
+    SIZE=$(stat -c %s "$TARGET")
+    if [[ $SIZE -gt 0xd800 ]] && \
+         [[ "$1" == *"nboot"* ]]; then
+        printf "${LIGHT_RED}Error max image size = 0xd800, current image size = 0x%x!${NORMAL}\b\n" "$SIZE"
+        rm $TARGET
+        return 1
+    else
+        objcopy -I binary -O binary --pad-to=$IMAGE_SIZE --gap-fill=0xFF $TARGET \
+        $TARGET
+        return 0
+    fi
 }
 
 
