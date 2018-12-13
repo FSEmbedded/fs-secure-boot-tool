@@ -153,8 +153,6 @@ fi
 # parse master key value
 if [ "$MASTER_KEY" == "o" ] || [ "$MASTER_KEY" == "otpmk" ]; then
     MASTER_KEY="otpmk"
-else
-    MASTER_KEY="zmk"
 fi
 
 # call subscripts (depending on "ACTION")

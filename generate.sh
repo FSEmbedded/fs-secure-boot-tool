@@ -99,12 +99,7 @@ if [ "$action" == "s" ]; then
     exit 0
 
 elif [ "$action" == "e" ]; then
-    printf "Do you want to use master key with ${BOLD}OTPMK${NORMAL} or ${BOLD}ZMK (o/z)${NORMAL}?\b\n"
-    read master_key
-    if [ "$master_key" != "o" ] && [ "$master_key" != "z" ]; then
-        printf "${BOLD}wrong master key!${NORMAL}\b\n"
-        exit 1
-    fi
+    master_key="o"
     check_nboot_for_keys=true
     ./makeAction.sh --loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --key-length="$key_length" --master-key="$master_key" --check-nboot-for-keys="$check_nboot_for_keys"
     if [ $? == 1 ]; then

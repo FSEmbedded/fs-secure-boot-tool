@@ -227,13 +227,8 @@ function setSignedCSFfile()
 	IMAGE_SIZE=0x10000
 
 	if [ "$OUTPUT_NAME" == "nboot_for_key.bin" ]; then
-	    if [ "$MASTER_KEY" == "zmk" ]; then
-	        sed -e '15,20s/#//' boot_in.csf > boot_temp
-	        sed -e '21,36s/#//' boot_temp > boot_in.csf
-	    else
-	        sed -e '15,17s/#//' boot_in.csf > boot_temp
-	        cp boot_temp boot_in.csf
-	    fi
+	    sed -e '15,17s/#//' boot_in.csf > boot_temp
+	    cp boot_temp boot_in.csf
 	    OUTPUT_NAME="${IMAGE_NAME}_for_key_${MASTER_KEY}.bin"
 	    rm boot_temp
 	fi
