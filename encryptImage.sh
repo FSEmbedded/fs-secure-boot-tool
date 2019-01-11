@@ -27,6 +27,7 @@ function handleParameters()
     KEY_LENGTH=$5
     MASTER_KEY=$6
     CHECK_NBOOT_FOR_KEYS=$7
+    ENGINE=$8
 }
 
 
@@ -325,7 +326,8 @@ ${CSF_ADDR:0:2}`
         -e "s/###SIZE###/$SIZE/" -e "s/###BOOT###/$image/" \
         -e "s/###length###/$KEY_LENGTH/" -e "s/###KEY_ADDR###/$KEY_ADDR/" \
         -e "s/###ADDR_DEC###/$ADDR_DEC/" -e "s/###OFFSET_ENC###/$OFFSET_ENC/" \
-        -e "s/###SIZE_DEC###/$SIZE_DEC/"  boot_in.csf > boot_in.csf_temp
+        -e "s/###SIZE_DEC###/$SIZE_DEC/" -e "s/###ENGINE###/$ENGINE/" \
+        boot_in.csf > boot_in.csf_temp
 
     if [ "$MASTER_KEY" == "otpmk" ]; then
         sed -e "s/###MASTER_KEY###/0/" boot_in.csf_temp > temp.csf
@@ -620,7 +622,8 @@ runFakeCST()
 	        -e "s/###KEY_ADDR###/0x$LOAD_ADDRESS/" \
 	        -e "s/###ADDR_DEC###/0x$LOAD_ADDRESS/" \
 	        -e "s/###OFFSET_ENC###/0x100/" -e "s/###SIZE_DEC###/0x10/" \
-	        -e  "s/###MASTER_KEY###/0/" boot_in.csf > boot_in.csf_temp
+	        -e  "s/###MASTER_KEY###/0/" -e "s/###ENGINE###/$ENGINE/" \
+                boot_in.csf > boot_in.csf_temp
 	    sed -e '25,$s/#//' boot_in.csf_temp > boot_fake.csf
 	    cp $image ${image}-bak
 

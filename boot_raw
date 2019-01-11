@@ -1,7 +1,7 @@
 [Header]
     Version = 4.1
     Hash Algorithm = sha256
-    Engine = ANY
+    Engine = ###ENGINE###
     Engine Configuration = 0
     Certificate Format = X509
     Signature Format = CMS

@@ -62,7 +62,7 @@ if [ "$settings" == "c" ]; then
 
 fi
 
-select cpu in "FSIMX6SDQ" "FSIMX6SX" "FSIMX6UL" "FSVYBRID";
+select cpu in "FSIMX6SDQ" "FSIMX6SX" "FSIMX6UL" "FSIMX6ULL" "FSVYBRID";
 do
     case "$cpu" in
 	FSIMX6SDQ )
@@ -77,8 +77,12 @@ do
 	    cpu=3
 	    break
 	    ;;
-	FSVYBRID )
+	FSIMX6ULL )
 	    cpu=4
+	    break
+	    ;;
+	FSVYBRID )
+	    cpu=5
 	    break
 	    ;;
     esac

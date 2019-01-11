@@ -109,7 +109,20 @@ case "$CPU_ARCH" in
 	CPU_ARCH=ul
 	;;
     4 )
+	CPU_ARCH=ull
+	;;
+    5 )
 	CPU_ARCH=vyb
+	;;
+esac
+
+# set "ENGINE" parameter
+case "$CPU_ARCH" in
+	ull )
+	ENGINE=SW
+	;;
+	* )
+	ENGINE=ANY
 	;;
 esac
 
@@ -144,6 +157,9 @@ if [ -z "$PAD_SIZE" ]; then
 	UL )
 	    PAD_SIZE=80000
 	    ;;
+	ULL )
+	    PAD_SIZE=80000
+	    ;;
 	VYB )
 	    PAD_SIZE=60000
 	    ;;
@@ -171,7 +187,7 @@ fi
 if [ "$ACTION" == "sign" ]; then
     # call script for signing an image
     ./signImage.sh "$CPU_ARCH" "$OUTPUT_NAME" "$LOAD_ADDR" "$image_path" \
-                   "$MASTER_KEY"
+                   "$MASTER_KEY" "$ENGINE"
     if [ "$?" == "0" ]; then
 	exit 0
     else
@@ -179,6 +195,6 @@ if [ "$ACTION" == "sign" ]; then
     fi
 elif [ "$ACTION" == "encrypt" ]; then
     ./encryptImage.sh "$CPU_ARCH" "$OUTPUT_NAME" "$LOAD_ADDR" "$image_path" \
-                      "$KEY_LENGTH" "$MASTER_KEY" "$check_nboot_for_keys"
+                      "$KEY_LENGTH" "$MASTER_KEY" "$check_nboot_for_keys" "$ENGINE"
     exit $?
 fi
