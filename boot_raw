@@ -11,10 +11,6 @@
 [Install CSFK]
     File = "./cst-2.3.2/crts/CSF1_1_sha256_###BIT###_65537_v3_usr_crt.pem"
 [Authenticate CSF]
-#recommended by nxp
-#[Init]
-#     Engine = CAAM
-#     Features = RNG
 [Install Key]
     File = "./cst-2.3.2/crts/IMG###NUM###_1_sha256_###BIT###_65537_v3_usr_crt.pem"
     Verification index = ###INDEX###

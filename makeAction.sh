@@ -2,7 +2,7 @@
 
 # handle script parameters
 
-OPTS=`getopt -n 'generate'  -o: --long pad-to:,output:,loadaddr:,cpu:,action:,serial-interface:,auto-mode:,burn-fuses:,settings:,image-path:,key-length:,master-key:,check-nboot-for-keys:,jtag-resp-key: -- "$@"`
+OPTS=`getopt -n 'generate'  -o: --long pad-to:,output:,loadaddr:,cpu:,action:,serial-interface:,auto-mode:,burn-fuses:,settings:,image-path:,key-length:,master-key:,jtag-resp-key: -- "$@"`
 
 eval set -- "$OPTS"
 
@@ -55,10 +55,6 @@ do
 	    ;;
 	--master-key )
 	    MASTER_KEY="$2"
-	    shift 2
-	    ;;
-	--check-nboot-for-keys )
-	    check_nboot_for_keys="$2"
 	    shift 2
 	    ;;
 	--jtag-resp-key )
@@ -195,6 +191,6 @@ if [ "$ACTION" == "sign" ]; then
     fi
 elif [ "$ACTION" == "encrypt" ]; then
     ./encryptImage.sh "$CPU_ARCH" "$OUTPUT_NAME" "$LOAD_ADDR" "$image_path" \
-                      "$KEY_LENGTH" "$MASTER_KEY" "$check_nboot_for_keys" "$ENGINE"
+                      "$KEY_LENGTH" "$MASTER_KEY" "$ENGINE"
     exit $?
 fi

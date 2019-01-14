@@ -104,19 +104,13 @@ if [ "$action" == "s" ]; then
 
 elif [ "$action" == "e" ]; then
     master_key="o"
-    check_nboot_for_keys=true
-    ./makeAction.sh --loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --key-length="$key_length" --master-key="$master_key" --check-nboot-for-keys="$check_nboot_for_keys"
-    if [ $? == 1 ]; then
-        exit 0
-    fi
     printf "Enter key length ${BOLD}(128/192/256):${NORMAL}\b\n"
     read key_length
     if [ $key_length != 128 ] && [ $key_length != 192 ] && [ $key_length != 256 ]; then
 	printf "${BOLD}wrong key length!${NORMAL}\b\n"
 	exit 1
     fi
-    check_nboot_for_keys=false
-    ./makeAction.sh --loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --key-length="$key_length" --master-key="$master_key" --check-nboot-for-keys="$check_nboot_for_keys"
+    ./makeAction.sh --loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --key-length="$key_length" --master-key="$master_key"
 fi
 
 exit 0

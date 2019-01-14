@@ -219,25 +219,18 @@ function setSignedCSFfile()
         OFFSET=0x400
         local TRUNCATE_SIZE=`grep -a -o -b "##CSF##" "$image" | \
                              sed -e "s/:.*//"`
-	local TEMP_SIZE=0x`printf "%x" "$TRUNCATE_SIZE"`
-	let TEMP_SIZE="$TEMP_SIZE - 0x400"
-	local SIZE=0x`printf "%x" "$TEMP_SIZE"`
+        local TEMP_SIZE=0x`printf "%x" "$TRUNCATE_SIZE"`
+        let TEMP_SIZE="$TEMP_SIZE - 0x400"
+        local SIZE=0x`printf "%x" "$TEMP_SIZE"`
 
         # set output name
         TARGET="${TARGET}.bin"
-	IMAGE_SIZE=0x10000
-
-	if [ "$OUTPUT_NAME" == "nboot_for_key.bin" ]; then
-	    sed -e '15,17s/#//' boot_in.csf > boot_temp
-	    cp boot_temp boot_in.csf
-	    OUTPUT_NAME="${IMAGE_NAME}_for_key_${MASTER_KEY}.bin"
-	    rm boot_temp
-	fi
+        IMAGE_SIZE=0x10000
     else
         if [[ "$1" == *"uboot"* ]]; then
-             TARGET="${TARGET}.nb0"
+            TARGET="${TARGET}.nb0"
         elif [ "$1" == "devtree" ]; then
-	    TARGET="${image}_signed"
+            TARGET="${image}_signed"
         fi
     fi
 
