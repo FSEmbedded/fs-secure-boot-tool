@@ -283,7 +283,7 @@ ${CSF_ADDR:0:2}`
         if [[ "$1" == *"uboot"* ]]; then
              TARGET="${TARGET}.nb0"
         elif [ "$1" == "devtree" ]; then
-	    TARGET="${image}_enc"
+	    TARGET="${image}_enc_${MASTER_KEY}"
         fi
     fi
 
