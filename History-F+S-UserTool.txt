@@ -1,0 +1,55 @@
+History of Changes for F&S Secure Boot Tool on F&S Boards and Modules
+=====================================================================
+
+fs-secure-boot-tool-2019.02 (31.01.2019)
+----------------------------------------
+Supported CPUs: i.MX6 S/DL/D/Q, i.MX6 SX, i.MX6 UL, i.MX6 ULL
+
+- Improve naming of encrypted images
+- Remove nboot_for_key
+- Support i.MX6ULL CPUs
+- Support new i.MX6 CPU revisions
+- Remove support for ZMK encryption
+- Improve error message syntax
+
+
+
+user-tool-V1.2 (26.04.2018)
+----------------------------------------
+Supported CPUs: i.MX6 S/DL/D/Q, i.MX6 SX, i.MX6 UL
+
+-
+
+
+
+user-tool-V1.1 (19.12.2017)
+----------------------------------------
+Supported CPUs: i.MX6 S/DL/D/Q, i.MX6 SX, i.MX6 UL
+
+- Improve output message in encryptImage.sh
+- Improve signing/encrypting process and optimize code
+- Improve encryption support ZMK for all stages
+- Improve encryptImage.sh
+- Improve boot_raw file
+- Add jtag response key creation to script
+- Improve custom load address parameter
+- Improve encryption script
+- Improve signImage.sh
+- Improve .gitignore file
+- Add .gitignore file
+- Add JTAG script to creat jtag response key
+
+
+
+user-tool-V1.0 (28.02.2017)
+----------------------------------------
+Supported CPUs: i.MX6 S/DL/D/Q, i.MX6 SX, i.MX6 UL
+
+- create files
+    * README.txt
+    * boot_raw
+    * createCertificates.sh
+    * encryptImage.sh
+    * generate.sh
+    * makeAction.sh
+    * signImage.sh

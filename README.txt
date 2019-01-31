@@ -2,9 +2,10 @@ File:     README.txt
 Author:   Patrick Jakob
 Created:  31.08.2017
 Modified: 31.08.2017 09:08 (PJ)
+Modified: 15.01.2019 09:16 (PJ)
 
 
-User Tool for F&S Bootloader & Kernel/DT
+F&S Secure Boot Tool for F&S Bootloader & Kernel/DT
 ===========================================
 
 When images must be signed/encrypted this User Tool do that. This User Tool
@@ -42,8 +43,14 @@ the given Image. The output is a signed Image.
 
 
 encryptImage.sh
-------------
+---------------
 This script fill the Command Sequence file and call the NXP Code Signing Tool
 cst script. This script outputs a signature and the encryption key. The
 signature will be merged in the given Image. The output is a encrypted Image.
+
+
+jtag.sh
+-------
+This script creates a JTAG response key. After that you can burn the JTAG
+response key in NBoot to use secure JTAG.
 
