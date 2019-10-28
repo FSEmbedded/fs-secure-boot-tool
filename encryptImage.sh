@@ -174,16 +174,16 @@ ${KERNEL_LOAD_ADDR:2:2}${KERNEL_LOAD_ADDR:0:2}`
 	IMAGE_NAME="uImage_${CPU_ARCH}"
     elif [ "$MAGIC_NUMBER_ZIMAGE" == "16f2818" ]; then
         if [ "$CPU_ARCH" == "sdq" ]; then
-            LOAD_ADDRESS=10800000
+            LOAD_ADDRESS=11000000
         else
-            LOAD_ADDRESS=80800000
+            LOAD_ADDRESS=81000000
         fi
         IMAGE_NAME="zImage_${CPU_ARCH}"
     elif [ "$MAGIC_NUMBER_DEVTREE" == "edfe0dd0" ]; then
         if [ "$CPU_ARCH" == "sdq" ]; then
-            LOAD_ADDRESS=11000000
+            LOAD_ADDRESS=12000000
         else
-            LOAD_ADDRESS=81000000
+            LOAD_ADDRESS=82000000
         fi
         IMAGE_NAME="devtree"
     elif [ "$MAGIC_NUMBER_E" == "43454345" ] || \
