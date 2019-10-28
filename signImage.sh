@@ -122,7 +122,8 @@ function getImageType()
     local MAGIC_NUMBER_M4=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$1"`
     local MAGIC_NUMBER_N=`hexdump -n 4 -s 0x400 -e '"%x\n"' "$1"`
     local NBOOT_LOADADDR=`hexdump -n 4 -s 0x414 -e '"%x\n"' "$1"`
-    local MAGIC_NUMBER_KERNEL=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$1"`
+    local MAGIC_NUMBER_UIMAGE=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$1"`
+    local MAGIC_NUMBER_ZIMAGE=`hexdump -n 4 -s 0x24 -e '"%x\n"' "$1"`
     local MAGIC_NUMBER_DEVTREE=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$1"`
 
     local UBOOT_NUMBER=`hexdump -n 4 -s 0x20 -e '"%x\n"' "$1"`
@@ -135,13 +136,20 @@ function getImageType()
     elif [ "$MAGIC_NUMBER_U" == "12345678" ]; then
         LOAD_ADDRESS="$UBOOT_CHECK_NUM"
         IMAGE_NAME="uboot_${CPU_ARCH}"
-    elif [ "$MAGIC_NUMBER_KERNEL" == "56190527" ]; then
+    elif [ "$MAGIC_NUMBER_UIMAGE" == "56190527" ]; then
 	local KERNEL_LOAD_ADDR=`hexdump -n 4 -s 0x14 -e '"%08x\n"' "$1"`
 	# change endianess
 	local temp_addr=`echo ${KERNEL_LOAD_ADDR:6:2}${KERNEL_LOAD_ADDR:4:2}\
 ${KERNEL_LOAD_ADDR:2:2}${KERNEL_LOAD_ADDR:0:2}`
 	LOAD_ADDRESS="$temp_addr"
 	IMAGE_NAME="uImage_${CPU_ARCH}"
+    elif [ "$MAGIC_NUMBER_ZIMAGE" == "16f2818" ]; then
+        if [ "$CPU_ARCH" == "sdq" ]; then
+            LOAD_ADDRESS=10800000
+        else
+            LOAD_ADDRESS=80800000
+        fi
+        IMAGE_NAME="zImage_${CPU_ARCH}"
     elif [ "$MAGIC_NUMBER_DEVTREE" == "edfe0dd0" ]; then
         if [ "$CPU_ARCH" == "sdq" ]; then
             LOAD_ADDRESS=11000000
