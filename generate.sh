@@ -7,6 +7,11 @@ LIGHT_GREEN='\033[1;32m'
 LIGHT_RED='\033[0;31m'
 CLEAR="\ec"
 
+# check if environment variable is set
+if [ -z "${CST_DIR}" ]; then
+    printf "***Please set ${BOLD}CST_DIR${NORMAL} in envionment variables***\b\n"
+    exit 1
+fi
 
 printf "Do you want to ${BOLD}create${NORMAL} certificates, create ${BOLD}jtag${NORMAL} response key, ${BOLD}sign${NORMAL} an image or ${BOLD}encrypt${NORMAL} an image ${BOLD}(c/j/s/e)${NORMAL}?\b\n"
 printf "Note: When an image is encrypted it's also signed!\b\n"
@@ -18,7 +23,7 @@ if [ "$action" != "c" ] && [ "$action" != "s" ] && [ "$action" != "e" ] && [ "$a
 fi
 
 if [ "$action" == "c" ]; then
-    ./makeAction.sh --settings=$settings --action=$action
+    ./makeAction.sh --settings=$settings --action=$action --cst-dir="${CST_DIR}"
     exit 0
 elif [ "$action" == "j" ]; then
     chrlen=0
@@ -43,7 +48,7 @@ elif [ "$action" == "j" ]; then
         exit 1
     fi
 
-    ./makeAction.sh --action="$action" --jtag-resp-key="$jtag_key"
+    ./makeAction.sh --action="$action" --jtag-resp-key="$jtag_key" --cst-dir="$CST_DIR"
     exit 0
 fi
 
@@ -99,7 +104,7 @@ printf "Enter image path ${BOLD}(absolute path!)${NORMAL}\b\n"
 read image_path
 
 if [ "$action" == "s" ]; then
-    ./makeAction.sh --loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path"
+    ./makeAction.sh --loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --cst-dir="$CST_DIR"
     exit 0
 
 elif [ "$action" == "e" ]; then
@@ -110,7 +115,7 @@ elif [ "$action" == "e" ]; then
 	printf "${BOLD}wrong key length!${NORMAL}\b\n"
 	exit 1
     fi
-    ./makeAction.sh --loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --key-length="$key_length" --master-key="$master_key"
+    ./makeAction.sh --loadaddr="$load" --pad-to="$pad" --output="$name" --cpu="$cpu" --action="$action" --image-path="$image_path" --key-length="$key_length" --master-key="$master_key" --cst-dir="$CST_DIR"
 fi
 
 exit 0

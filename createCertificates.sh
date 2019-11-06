@@ -1,6 +1,44 @@
 #!/bin/bash
 
 
+###############################################################################
+# function: handleParameters()
+#
+# parameters: all parameters given to the script
+#
+# return: -
+#
+# description:
+# This functions stores the script parameters in global(!) vairables.
+#
+###############################################################################
+
+function handleParameters()
+{
+    CST_DIR=$2
+    SRKTOOL_BINARY=$3
+}
+
+
+################################################################################
+# function: setup_variables
+#
+# parameters:
+#
+# return: -
+#
+# description:
+# Setup some environment variables
+#
+################################################################################
+
+function setup_variables()
+{
+    # get path to crts folder
+    CRTS_DIR=`find ${CST_DIR} -type d -iname "crts"`
+    # get path to keys folder
+    KEYS_DIR=`find ${CST_DIR} -type d -iname "keys"`
+}
 
 ################################################################################
 # function: check_serial
@@ -11,13 +49,13 @@
 #         1: serial and passphrase exist
 #
 # description:
-# Checks if there is a file serial or key_pass.txt
+# Checks if the files serial and key_pass.txt already created.
 #
 ################################################################################
 
 function check_serial()
 {
-    if [ -f ./cst-2.3.2/keys/serial -o -f ./cst-2.3.2/keys/serial ]; then
+    if [ -f $KEYS_DIR/serial ] && [ -f $KEYS_DIR/key_pass.txt ]; then
 	return 1
     else
 	return 0
@@ -44,15 +82,16 @@ function create_serial()
     local serial
     read serial
     echo $serial > serial
-    mv serial ./cst-2.3.2/keys/
+    mv serial $KEYS_DIR/
 
     printf "Please enter a passphrase (no blanks!):"
     local passPhrase
     read passPhrase
     echo $passPhrase > key_pass.txt
     echo $passPhrase >> key_pass.txt
-    mv key_pass.txt ./cst-2.3.2/keys/
+    mv key_pass.txt $KEYS_DIR/
 }
+
 
 ################################################################################
 # function: check_Certificates()
@@ -67,7 +106,7 @@ function create_serial()
 
 function check_Certificates()
 {
-    if [ `ls -l ./cst-2.3.2/crts/SRK*.pem 2>/dev/null | wc -l` -gt 0 ]; then
+    if [ `ls -l $CRTS_DIR/SRK*.pem 2>/dev/null | wc -l` -gt 0 ]; then
 	printf "Certificates already exist!\b\n"
 	return 1
     else
@@ -91,8 +130,11 @@ function check_Certificates()
 
 function create_Certificates()
 {
-    cd ./cst-2.3.2/keys/
-    cp ../../boot_raw .
+    # we have to switch inside the $KEYS_DIR to create certificates because
+    # it copy the certificates to necessary crts/keys folder from its relativ
+    # path.
+    home=$PWD
+    cd $KEYS_DIR
     if [ "$1" == "d" ]; then                    # default settings
 	./hab4_pki_tree.sh 2>/dev/null          # generate no output on console
     elif [ "$1" == "c" ]; then                  # create own settings
@@ -105,7 +147,7 @@ function create_Certificates()
 	printf "Certificate(s) sucessfully created\b\n"
     fi
 
-    cd ../../
+    cd $home
 }
 
 ################################################################################
@@ -124,10 +166,9 @@ function create_Certificates()
 function createSRK()
 {
     pattern=SRK1*.pem
-    path=./cst-2.3.2/crts/
 
-    file=`basename $path$pattern`
-    count=`ls -d ${path}SRK*.pem | wc -l`
+    file=`basename ${CRTS_DIR}/$pattern`
+    count=`ls -d ${CRTS_DIR}/SRK*.pem | wc -l`
 
     case "$file" in
         *1024*)
@@ -161,27 +202,26 @@ function createSRK()
     esac
 
     if [ "$count" = "1" ]; then
-	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem -f 1
+	$SRKTOOL_BINARY -h 4 -t $CRTS_DIR/SRK_Table.bin -e $CRTS_DIR/SRK_fuse.bin -d sha256 -c $CRTS_DIR/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem -f 1
 
     elif [ "$count" = "2" ]; then
 
-	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK2_sha256_${kl}_65537_v3_${flag}_crt.pem -f 1
+	$SRKTOOL_BINARY -h 4 -t $CRTS_DIR/SRK_Table.bin -e $CRTS_DIR/SRK_fuse.bin -d sha256 -c $CRTS_DIR/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem,$CRTS_DIR/SRK2_sha256_${kl}_65537_v3_${flag}_crt.pem -f 1
 
     elif [ "$count" = "3" ]; then
 
-	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK2_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK3_sha256_${kl}_65537_v3_${flag}_crt.pem -f 1
+	$SRKTOOL_BINARY -h 4 -t $CRTS_DIR/SRK_Table.bin -e $CRTS_DIR/SRK_fuse.bin -d sha256 -c $CRTS_DIR/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem,$CRTS_DIR/SRK2_sha256_${kl}_65537_v3_${flag}_crt.pem,$CRTS_DIR/SRK3_sha256_${kl}_65537_v3_${flag}_crt.pem -f 1
 
     elif [ "$count" = "4" ]; then
 
-	./cst-2.3.2/linux64/srktool -h 4 -t ./cst-2.3.2/crts/SRK_Table.bin -e ./cst-2.3.2/crts/SRK_fuse.bin -d sha256 -c ./cst-2.3.2/crts/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK2_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK3_sha256_${kl}_65537_v3_${flag}_crt.pem,./cst-2.3.2/crts/SRK4_sha256_${kl}_65537_v3_${flag}_crt.pem  -f 1
+	$SRKTOOL_BINARY -h 4 -t $CRTS_DIR/SRK_Table.bin -e $CRTS_DIR/SRK_fuse.bin -d sha256 -c $CRTS_DIR/SRK1_sha256_${kl}_65537_v3_${flag}_crt.pem,$CRTS_DIR/SRK2_sha256_${kl}_65537_v3_${flag}_crt.pem,$CRTS_DIR/SRK3_sha256_${kl}_65537_v3_${flag}_crt.pem,$CRTS_DIR/SRK4_sha256_${kl}_65537_v3_${flag}_crt.pem  -f 1
 
     fi
 
-#modify boot_raw (CSF)
-    sed -e "s/###BIT###/$kl/" ./boot_raw > boot_raw_edited
+    #modify boot_raw (CSF)
+    sed -e "s/###BIT###/$kl/" boot_raw > boot_raw_edited
 
     rm boot_raw
-
 }
 
 
@@ -253,7 +293,8 @@ function createSRKHash()
 
 
 # main function
-
+handleParameters "$@"
+setup_variables
 check_serial
 if [ "$?" == "0" ]; then
     create_serial
@@ -266,6 +307,6 @@ if [ "$?" == "0" ]; then
 fi
 
 createSRK
-createSRKHash "${PWD}/cst-2.3.2/crts/SRK_fuse.bin"
+createSRKHash "$CRTS_DIR/SRK_fuse.bin"
 
 exit 0
