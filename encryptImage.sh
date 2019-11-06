@@ -162,9 +162,11 @@ function getImageType()
     if [ "$MAGIC_NUMBER_N" == "402000d1" ]; then
         LOAD_ADDRESS="$NBOOT_LOADADDR"
         IMAGE_NAME="nboot_${CPU_ARCH}"
+        SIGN_SIZE=0x20
     elif [ "$MAGIC_NUMBER_U" == "12345678" ]; then
         LOAD_ADDRESS="$UBOOT_CHECK_NUM"
         IMAGE_NAME="uboot_${CPU_ARCH}"
+        SIGN_SIZE=0x80
     elif [ "$MAGIC_NUMBER_UIMAGE" == "56190527" ]; then
 	local KERNEL_LOAD_ADDR=`hexdump -n 4 -s 0x14 -e '"%08x\n"' "$1"`
 	# change endianess
@@ -172,6 +174,7 @@ function getImageType()
 ${KERNEL_LOAD_ADDR:2:2}${KERNEL_LOAD_ADDR:0:2}`
 	LOAD_ADDRESS="$temp_addr"
 	IMAGE_NAME="uImage_${CPU_ARCH}"
+	SIGN_SIZE=0xe0
     elif [ "$MAGIC_NUMBER_ZIMAGE" == "16f2818" ]; then
         if [ "$CPU_ARCH" == "sdq" ]; then
             LOAD_ADDRESS=11000000
@@ -179,6 +182,7 @@ ${KERNEL_LOAD_ADDR:2:2}${KERNEL_LOAD_ADDR:0:2}`
             LOAD_ADDRESS=81000000
         fi
         IMAGE_NAME="zImage_${CPU_ARCH}"
+        SIGN_SIZE=0xa0
     elif [ "$MAGIC_NUMBER_DEVTREE" == "edfe0dd0" ]; then
         if [ "$CPU_ARCH" == "sdq" ]; then
             LOAD_ADDRESS=12000000
@@ -186,6 +190,7 @@ ${KERNEL_LOAD_ADDR:2:2}${KERNEL_LOAD_ADDR:0:2}`
             LOAD_ADDRESS=82000000
         fi
         IMAGE_NAME="devtree"
+        SIGN_SIZE=0xa0
     elif [ "$MAGIC_NUMBER_E" == "43454345" ] || \
          [ "$MAGIC_NUMBER_M4" == "4d344d34" ]; then
 	printf "Not yet supported!\b\n"
@@ -242,13 +247,13 @@ function makeEncryptedImage()
 ###############################################################################
 function setEncryptedCSFFile()
 {
-    local OFFSET_ENC=0x100
+    local SIZE=$SIGN_SIZE
+    local OFFSET_ENC=$SIGN_SIZE
     local OFFSET=0x0
     local ADDR=0x"$LOAD_ADDRESS"
     local SIZE_DEC=$(stat -c %s "$image")
     local KEY_ADDR=0x`printf "%08x" $(($SIZE_DEC+$ADDR))`
     local IMAGE_SIZE=0x$BOOT_DATA_LENGTH
-    local SIZE=0x100
     local ADDR_DEC=$(($ADDR + $SIZE))
     ADDR_DEC=0x`printf "%08x" "$ADDR_DEC"`
     TARGET="${IMAGE_NAME}_enc_${MASTER_KEY}"
@@ -260,7 +265,6 @@ function setEncryptedCSFFile()
 
     if [[ "$1" == *"nboot"* ]]; then
         OFFSET=0x400
-        OFFSET_ENC=0x500
         local TRUNCATE_SIZE=`grep -a -o -b "##CSF##" "$image" | \
         sed -e "s/:.*//"`
         KEY_ADDR=0x`printf "%08x" $(($TRUNCATE_SIZE+$ADDR-$OFFSET))`
