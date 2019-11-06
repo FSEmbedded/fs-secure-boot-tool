@@ -10,27 +10,27 @@ while true
 do
     case "$1" in
 	--pad-to )
-	    PAD_SIZE="$2"
+	    pad_size="$2"
 	    shift 2
 	    ;;
 	--output )
-	    OUTPUT_NAME="$2"
+	    output_name="$2"
 	    shift 2
 	    ;;
 	--loadaddr )
-	    LOAD_ADDR="$2"
+	    load_addr="$2"
 	    shift 2
 	    ;;
 	--cpu )
-	    CPU_ARCH="$2"
+	    cpu_arch="$2"
 	    shift 2
 	    ;;
 	--action )
-	    ACTION="$2"
+	    action="$2"
 	    shift 2
 	    ;;
 	--serial-interface )
-	    SERIAL_DEVICE="$2"
+	    serial_device="$2"
 	    shift 2
 	    ;;
 	--auto-mode )
@@ -50,11 +50,11 @@ do
 	    shift 2
 	    ;;
 	--key-length )
-	    KEY_LENGTH="$2"
+	    key_length="$2"
 	    shift 2
 	    ;;
 	--master-key )
-	    MASTER_KEY="$2"
+	    master_key="$2"
 	    shift 2
 	    ;;
 	--jtag-resp-key )
@@ -75,11 +75,11 @@ done
 case "$mode" in
     0 )
 	mode=true
-	SERIAL_DEVICE="$SERIAL_DEVICE"  # keep entered serial device
+	serial_device="$serial_device"  # keep entered serial device
 	;;
     1 )
 	mode=false
-	SERIAL_DEVICE=nop               # no operation
+	serial_device=nop               # no operation
 	;;
 esac
 
@@ -96,79 +96,79 @@ case "$burn_fuses" in
 	;;
 esac
 
-# evaluate "CPU_ARCH" parameter and set variable according to it
+# evaluate "cpu_arch" parameter and set variable according to it
 
-case "$CPU_ARCH" in
+case "$cpu_arch" in
     1 )
-	CPU_ARCH=sdq
+	cpu_arch=sdq
 	;;
     2 )
-	CPU_ARCH=sx
+	cpu_arch=sx
 	;;
     3 )
-	CPU_ARCH=ul
+	cpu_arch=ul
 	;;
     4 )
-	CPU_ARCH=ull
+	cpu_arch=ull
 	;;
     5 )
-	CPU_ARCH=vyb
+	cpu_arch=vyb
 	;;
 esac
 
-# set "ENGINE" parameter
-case "$CPU_ARCH" in
+# set "engine" parameter
+case "$cpu_arch" in
 	ull )
-	ENGINE=SW
+	engine=SW
 	;;
 	* )
-	ENGINE=ANY
+	engine=ANY
 	;;
 esac
 
-# evaluate "ACTION" parameter and set variable according to it
+# evaluate "action" parameter and set variable according to it
 
-case "$ACTION" in
+case "$action" in
     c )
-	ACTION=create
+	action=create
 	;;
     j )
-        ACTION=jtag
+        action=jtag
         ;;
     s )
-	ACTION=sign
+	action=sign
 	;;
     e )
-	ACTION=encrypt
+	action=encrypt
 	;;
 esac
 
-# when there is no "PAD_SIZE" parameter, set a defalut value
+# when there is no "pad_size" parameter, set a defalut value
 # (depending on the cpu)
 
-if [ -z "$PAD_SIZE" ]; then
-    case "$CPU_ARCH" in
+if [ -z "$pad_size" ]; then
+    case "$cpu_arch" in
 	SDQ )
-	    PAD_SIZE=80000
+	    pad_size=80000
 	    ;;
 	SX )
-	    PAD_SIZE=80000
+	    pad_size=80000
 	    ;;
 	UL )
-	    PAD_SIZE=80000
+	    pad_size=80000
 	    ;;
 	ULL )
-	    PAD_SIZE=80000
+	    pad_size=80000
 	    ;;
 	VYB )
-	    PAD_SIZE=60000
+	    pad_size=60000
 	    ;;
     esac
 fi
 
 # parse master key value
-if [ "$MASTER_KEY" == "o" ] || [ "$MASTER_KEY" == "otpmk" ]; then
-    MASTER_KEY="otpmk"
+if [ "$master_key" == "o" ] || [ "$master_key" == "otpmk" ]; then
+    master_key="otpmk"
 fi
 
 # setup paths
@@ -190,28 +190,28 @@ else
     exit 1
 fi
 
-# call subscripts (depending on "ACTION")
-if [ "$ACTION" == "create" ]; then
+# call subscripts (depending on "action")
+if [ "$action" == "create" ]; then
     # call script for creating the certificates
     ./createCertificates.sh c "$cst_dir" "$srktool_binary"
     exit 0
 fi
 
-if [ "$ACTION" == "jtag" ]; then
+if [ "$action" == "jtag" ]; then
     ./jtag.sh "$jtag_resp_key"
 fi
 
-if [ "$ACTION" == "sign" ]; then
+if [ "$action" == "sign" ]; then
     # call script for signing an image
-    ./signImage.sh "$CPU_ARCH" "$OUTPUT_NAME" "$LOAD_ADDR" "$image_path" \
-                   "$cst_sign_binary"
+    ./signImage.sh "$cpu_arch" "$output_name" "$load_addr" "$image_path" \
+                   "$engine" "$cst_sign_binary"
     if [ "$?" == "0" ]; then
 	exit 0
     else
 	exit 1
     fi
-elif [ "$ACTION" == "encrypt" ]; then
-    ./encryptImage.sh "$CPU_ARCH" "$OUTPUT_NAME" "$LOAD_ADDR" "$image_path" \
-                      "$KEY_LENGTH" "$MASTER_KEY" "$ENGINE" "$cst_dir" "$cst_enc_binary"
+elif [ "$action" == "encrypt" ]; then
+    ./encryptImage.sh "$cpu_arch" "$output_name" "$load_addr" "$image_path" \
+                      "$key_length" "$master_key" "$engine" "$cst_dir" "$cst_enc_binary"
     exit $?
 fi
