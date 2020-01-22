@@ -2,17 +2,15 @@
 
 # handle script parameters
 
-OPTS=`getopt -n 'generate'  -o: --long pad-to:,output:,loadaddr:,cpu:,action:,serial-interface:,auto-mode:,burn-fuses:,settings:,image-path:,key-length:,master-key:,jtag-resp-key:,cst-dir: -- "$@"`
+OPTS=`getopt -n 'generate'  -o: --long output:,loadaddr:,cpu:,action:\
+,serial-interface:,auto-mode:,burn-fuses:,settings:,image-path:\
+,key-length:,master-key:,jtag-resp-key:,cst-dir: -- "$@"`
 
 eval set -- "$OPTS"
 
 while true
 do
     case "$1" in
-	--pad-to )
-	    pad_size="$2"
-	    shift 2
-	    ;;
 	--output )
 	    output_name="$2"
 	    shift 2
@@ -70,8 +68,27 @@ do
     esac
 done
 
-# evaluate "mode" parameter and set variables according to it
 
+# evaluate "action" parameter and set variable according to it
+case "$action" in
+    c )
+	action=create
+	;;
+    j )
+	action=jtag
+	;;
+    s )
+	action=sign
+	;;
+    e )
+	action=encrypt
+	;;
+	* )
+	printf "\nWrong action parameter $action! Aborting....\n\n"
+	exit 1
+esac
+
+# evaluate "mode" parameter and set variables according to it
 case "$mode" in
     0 )
 	mode=true
@@ -84,7 +101,6 @@ case "$mode" in
 esac
 
 # evaluate "burn_fuses" parameter and set variables according to it
-
 case "$burn_fuses" in
     0 )
 	burn_fuses=true
@@ -96,122 +112,137 @@ case "$burn_fuses" in
 	;;
 esac
 
-# evaluate "cpu_arch" parameter and set variable according to it
-
-case "$cpu_arch" in
-    1 )
-	cpu_arch=sdq
-	;;
-    2 )
-	cpu_arch=sx
-	;;
-    3 )
-	cpu_arch=ul
-	;;
-    4 )
-	cpu_arch=ull
-	;;
-    5 )
-	cpu_arch=vyb
-	;;
-esac
-
-# set "engine" parameter
-case "$cpu_arch" in
-	ull )
-	engine=SW
-	;;
-	* )
-	engine=ANY
-	;;
-esac
-
-# evaluate "action" parameter and set variable according to it
-
-case "$action" in
-    c )
-	action=create
-	;;
-    j )
-        action=jtag
-        ;;
-    s )
-	action=sign
-	;;
-    e )
-	action=encrypt
-	;;
-esac
-
-# when there is no "pad_size" parameter, set a defalut value
-# (depending on the cpu)
-
-if [ -z "$pad_size" ]; then
-    case "$cpu_arch" in
-	SDQ )
-	    pad_size=80000
-	    ;;
-	SX )
-	    pad_size=80000
-	    ;;
-	UL )
-	    pad_size=80000
-	    ;;
-	ULL )
-	    pad_size=80000
-	    ;;
-	VYB )
-	    pad_size=60000
-	    ;;
-    esac
+# check parameters for script jtag.sh
+if [ "$action" == "jtag" ]; then
+	chrlen=${#jtag_resp_key}
+	if [ $chrlen != 14 ]; then
+		printf "\nJTAG key length $chrlen != 14! Aborting....\n\n"
+	fi
+	if ! [[ $jtag_resp_key =~ [0-9A-Fa-f]{$chrlen} ]]; then
+		printf "\nJTAG resp key $jtag_resp_key is not a hex number! "
+		printf "Aborting....\n\n"
+		exit 1
+	fi
 fi
 
-# parse master key value
-if [ "$master_key" == "o" ] || [ "$master_key" == "otpmk" ]; then
-    master_key="otpmk"
+# check parameters for script encryptImage.sh
+if [ "$action" == "encrypt" ]; then
+	if [ $key_length != 128 ] && [ $key_length != 192 ] && \
+		[ $key_length != 256 ]; then
+		printf "\nWrong key length! Aborting....\n\n"
+		exit 1
+	fi
+
+	# parse master key value
+	if [ "$master_key" == "o" ] || [ "$master_key" == "otpmk" ]; then
+		master_key="otpmk"
+	else
+		printf "\nMaster key '$master_key' not supported! Aborting....\n\n"
+		exit 1
+	fi
 fi
 
-# setup paths
-if [ "$cst_dir" != "" ] ; then
-    host_version=`uname -m | grep "64"`
-    if [ -z $host_version ] ; then
-        cst_sign_binary=`find ${cst_dir} -type f -iname "cst" | tail -n 1`
-        cst_enc_binary="${cst_sign_binary}_encrypt"
-        srktool_binary=`find ${cst_dir} -type f -iname "srktool" | tail -n 1`
-    else
-        cst_sign_binary=`find ${cst_dir} -type f -iname "cst" | head -n 1`
-        cst_enc_binary="${cst_sign_binary}_encrypt"
-        srktool_binary=`find ${cst_dir} -type f -iname "srktool" | tail -n 2 | head -n 1`
-    fi
-    if [ -z $cst_sign_binary ] || [ -z $srktool_binary ] ; then
-        exit 1
-    fi
-else
-    exit 1
+# check parameters for script signImage.sh / encryptImage.sh
+if [ "$action" == "sign" ] || [ "$action" == "encrypt" ]; then
+	# evaluate "cpu_arch" parameter and set variable according to it
+	case "$cpu_arch" in
+		1 )
+		cpu_arch=sdq
+		;;
+		2 )
+		cpu_arch=sx
+		;;
+		3 )
+		cpu_arch=ul
+		;;
+		4 )
+		cpu_arch=ull
+		;;
+		5 )
+		cpu_arch=vyb
+		;;
+		* )
+		printf "\nUnknown cpu_arch! Aborting....\n\n"
+		exit 1
+		;;
+	esac
+
+	# if output_name is not set, it generates automatically one
+
+	# if load_addr is set, check if it´s a hex number
+	if [ -n "$load_addr" ]; then
+		chrlen=${#load_addr}
+		if ! [[ $load_addr =~ [0-9A-Fa-f]{$chrlen} ]]; then
+			printf "\nload_addr $load_addr is not a hex number! "
+			printf "Aborting....\n\n"
+			exit 1
+		fi
+	fi
+
+	# check if image exists
+	if [ ! -f "$image_path" ]; then
+		printf "\nFile: $image_path does not exist! Aborting....\n\n"
+	exit 1
+	fi
+
+	# set "engine" parameter
+	case "$cpu_arch" in
+		ull )
+		engine=SW
+		;;
+		* )
+		engine=ANY
+		;;
+	esac
 fi
+
+# check parameter for script createCertificates.sh / signImage.sh /
+# encryptImage.sh
+if [ "$action" == "create" ] || [ "$action" == "sign" ] || \
+	[ "$action" == "encrypt" ]; then
+    # setup paths
+	if [ -d "$cst_dir" ] ; then
+		host_version=`uname -m | grep "64"`
+		if [ ! -z $host_version ] ; then
+			cst_sign_binary=`find ${cst_dir} -type f -iname "cst" |\
+			tail -n 1`
+			cst_enc_binary="${cst_sign_binary}_encrypt"
+			srktool_binary=`find ${cst_dir} -type f -iname "srktool" |\
+			tail -n 1`
+		else
+			cst_sign_binary=`find ${cst_dir} -type f -iname "cst" |\
+			head -n 1`
+			cst_enc_binary="${cst_sign_binary}_encrypt"
+			srktool_binary=`find ${cst_dir} -type f -iname "srktool" |\
+			tail -n 2 | head -n 1`
+		fi
+		if [ -z $cst_sign_binary ] || [ -z $srktool_binary ] || \
+			[ -z $cst_enc_binary ]; then
+			printf "\n Unable setup variables cst_sign_binary, "
+			printf "cst_enc_binary and srktool_binary! Aborting....\n\n"
+			exit 1
+		fi
+	else
+		printf "\n CST directory doesn´t exist! Aborting....\n\n"
+		exit 1
+	fi
+fi
+
 
 # call subscripts (depending on "action")
 if [ "$action" == "create" ]; then
-    # call script for creating the certificates
-    ./createCertificates.sh c "$cst_dir" "$srktool_binary"
-    exit 0
-fi
-
-if [ "$action" == "jtag" ]; then
-    ./jtag.sh "$jtag_resp_key"
-fi
-
-if [ "$action" == "sign" ]; then
-    # call script for signing an image
-    ./signImage.sh "$cpu_arch" "$output_name" "$load_addr" "$image_path" \
-                   "$engine" "$cst_sign_binary"
-    if [ "$?" == "0" ]; then
-	exit 0
-    else
-	exit 1
-    fi
+	# call script for creating the certificates
+	./createCertificates.sh c "$cst_dir" "$srktool_binary"
+elif [ "$action" == "jtag" ]; then
+	# call script for creating a JTAG response key
+	./jtag.sh "$jtag_resp_key"
+elif [ "$action" == "sign" ]; then
+	# call script for signing an image
+	./signImage.sh "$cpu_arch" "$output_name" "$load_addr" "$image_path" \
+			"$engine" "$cst_sign_binary"
 elif [ "$action" == "encrypt" ]; then
-    ./encryptImage.sh "$cpu_arch" "$output_name" "$load_addr" "$image_path" \
-                      "$key_length" "$master_key" "$engine" "$cst_dir" "$cst_enc_binary"
-    exit $?
+	# call script for encrypting an image
+	./encryptImage.sh "$cpu_arch" "$output_name" "$load_addr" "$image_path" \
+			"$key_length" "$master_key" "$engine" "$cst_dir" "$cst_enc_binary"
 fi
+exit $?
