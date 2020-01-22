@@ -6,13 +6,13 @@
     Certificate Format = X509
     Signature Format = CMS
 [Install SRK]
-    File = "./cst-2.3.2/crts/SRK_Table.bin"
+    File = "###CST_DIR###crts/SRK_Table.bin"
     Source index = ###INDEX###
 [Install CSFK]
-    File = "./cst-2.3.2/crts/CSF1_1_sha256_###BIT###_65537_v3_usr_crt.pem"
+    File = "###CST_DIR###crts/CSF1_1_sha256_###BIT###_65537_v3_usr_crt.pem"
 [Authenticate CSF]
 [Install Key]
-    File = "./cst-2.3.2/crts/IMG###NUM###_1_sha256_###BIT###_65537_v3_usr_crt.pem"
+    File = "###CST_DIR###crts/IMG###NUM###_1_sha256_###BIT###_65537_v3_usr_crt.pem"
     Verification index = ###INDEX###
     Target index = 2
 [Authenticate Data]

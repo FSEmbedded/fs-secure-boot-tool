@@ -219,7 +219,8 @@ function createSRK()
     fi
 
     #modify boot_raw (CSF)
-    sed -e "s/###BIT###/$kl/" boot_raw > boot_raw_edited
+    sed -e "s/###BIT###/$kl/" -e "s|###CST_DIR###|$CST_DIR|" boot_raw > \
+    boot_raw_edited
 
     rm boot_raw
 }
