@@ -325,6 +325,9 @@ function createIVTHeader()
 	local IVT_HEADER=402000D1
 	local IVT_TARGET=`echo "${2}_ivt.bin"`
 	local SELF_POINTER="$LOAD_ADDRESS"
+	local CSF_ADDR=$(stat -c %s "$1")
+	local ZEROS=00000000
+
 	let local BOOT_DATA="$LOAD_ADDRESS + 20"
 
 	if [[ "$2" == *"uImage"* ]] || [ "$2" == "devtree_fit-image" ]; then
@@ -332,15 +335,6 @@ function createIVTHeader()
 	else
 		let local ENTRY_POINT="$BOOT_DATA"
 	fi
-
-	local ZEROS=00000000
-	local CSF_ADDR=$(stat -c %s "$1")
-
-	# round CSF_ADDR up to the next 0x10 boundary (left-adjusted)
-	CSF_ADDR=$((($CSF_ADDR+15)/16))
-	CSF_ADDR=$(($CSF_ADDR * 16))
-
-	objcopy -I binary -O binary --pad-to=$CSF_ADDR --gap-fill=0xFF $1 $1
 
 	local temp=`echo ${IVT_HEADER:6:2}${IVT_HEADER:4:2}${IVT_HEADER:2:2}\
 ${IVT_HEADER:0:2}`
@@ -424,6 +418,13 @@ function createBootDataHeader()
 ${LOAD_ADDRESS:2:2}${LOAD_ADDRESS:0:2}`
 		temp_addr=`echo -n -e $temp_addr | sed -e 's/.\{2\}/&\\\x/g'`
 	fi
+
+	local CSF_ADDR=$(stat -c %s "$1")
+	# round CSF_ADDR up to the next 0x10 boundary (left-adjusted)
+	CSF_ADDR=$((($CSF_ADDR+15)/16))
+	CSF_ADDR=$(($CSF_ADDR * 16))
+	# pad image to the next 0x10 boundary (left-adjusted)
+	objcopy -I binary -O binary --pad-to=$CSF_ADDR --gap-fill=0xFF $1 $1
 
 	runFakeCST "$2"
 
