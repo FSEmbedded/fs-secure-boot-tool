@@ -12,23 +12,61 @@ LIGHT_RED='\033[0;31m'
 #
 # parameters: all parameters given to the script
 #
-# return: -
+# return:     -
 #
 # description:
-# This functions stores the script parameters in global(!) vairables.
+# This functions stores the script parameters in global(!) variables. Big
+# letter variables are files/directories, small letter variables are just
+# variables.
 #
 ###############################################################################
 function handleParameters()
 {
-	CPU_ARCH=$1
+	cpu_arch=$1
 	OUTPUT_NAME=$2
-	CUSTOM_LOAD_ADDRESS=$3
+	custom_load_address=$3
 	IMAGE_PATH=$4
-	KEY_LENGTH=$5
-	MASTER_KEY=$6
-	ENGINE=$7
+	key_length=$5
+	master_key=$6
+	engine=$7
 	CST_DIR=$8
 	CST_BINARY=$9
+}
+
+
+###############################################################################
+# function: setup_variables
+#
+# parameters: -
+#
+# return:     -
+#
+# description:
+# Setup some global variables. Big letter variables are files/directories,
+# small letter variables are just variables.
+#
+###############################################################################
+function setup_variables()
+{
+	# big letter names are files/directories
+	# create folder '_tmp' which contains all created temporary files and the
+	# corresponding global variable
+	TMP_DIR=_tmp
+	mkdir -p $TMP_DIR
+	IMAGE=0
+	TMP_IMAGE=temp_image.bin
+	BOOT_IN_CSF=boot_in.csf
+	BOOT_IN_CSF_FAKE=boot_in.csf_fake
+	BOOT_IN_CSF_FAKE_2=boot_in.csf_fake_2
+	BOOT_RAW_EDITED=boot_raw_edited
+	CSF_BIN=csf.bin
+	TARGET_NAME=0
+	DEK_BLOB=dek_blob.bin
+	# small letter are just variables
+	load_address=0
+	image_name=0
+	signing_size=0
+	signed_image_length=0
 }
 
 
@@ -37,7 +75,7 @@ function handleParameters()
 #
 # parameters: -
 #
-# return: -
+# return:     -
 #
 # description:
 # Checks if the cst tool is enabled for encryption or not.
@@ -46,7 +84,7 @@ function handleParameters()
 function checkEncryptionTool()
 {
 	if [ ! -f "$CST_BINARY" ]; then
-		path=$PWD
+		local cur_dir=$PWD
 		cd $CST_DIR/code/back_end/src
 		gcc -o cst_encrypt -I ../hdr -L ../../../linux64/lib *.c -lfrontend \
 		-lcrypto
@@ -56,7 +94,7 @@ function checkEncryptionTool()
 			printf "\n$CST_BINARY could not be created! Aborting....\n\n"
 			exit 1
 		fi
-		cd $path
+		cd $cur_dir
 	fi
 }
 
@@ -70,8 +108,7 @@ function checkEncryptionTool()
 #
 # description:
 # This function sets the numbers in the boot.csf-in file depending which
-# created certificate should be used (is treated as '1'!!). Not implemented
-# yet!
+# created certificate should be used (is treated as '1'). Not implemented yet!
 #
 ###############################################################################
 function setCertNumberEncrypting()
@@ -80,7 +117,6 @@ function setCertNumberEncrypting()
 #    local quantity=`ls -d ${path}SRK*.pem | wc -l`
 #    printf "Which certificate do you want to use for signing"
 #    printf " (1-%u)?\b\n" "$quantity"
-    local num=1
 #    read num
 #
 #    if [[ ! $num =~ ^[0-9]+$ ]]; then
@@ -97,12 +133,12 @@ function setCertNumberEncrypting()
 	local num=1
 	let "temp=$num - 1"
 
-	sed -e "s/###INDEX###/$temp/" -e "s/###NUM###/$num/" boot_raw_edited > \
-	boot_in.csf
+	sed -e "s/###INDEX###/$temp/" -e "s/###NUM###/$num/" $BOOT_RAW_EDITED > \
+	$TMP_DIR/$BOOT_IN_CSF
 
 	if [ "$?" != "0" ]; then
 		printf "\nFunction setCertNumberSigning() failed! Aborting ....\n\n"
-		rm boot_in.csf 1> /dev/null
+		rm -r $TMP_DIR
 		exit 1
 	fi
 }
@@ -116,24 +152,28 @@ function setCertNumberEncrypting()
 # return: -
 #
 # description:
-# Copies the specified image to the working directory and stores it's name in a
-# global variable.
+# Copies the specified image to the $TMP_DIR directory and stores it's name in
+# a global variable.
 #
 ###############################################################################
 function getImageToBeEncrypted()
 {
-	DIR=`dirname "$IMAGE_PATH"`
+	local DIR=`dirname "$IMAGE_PATH"`
 
+	IMAGE=`basename "$IMAGE_PATH"`
+
+	# copy file to current directory if not already exists
 	if ! [ "$PWD" == "$DIR" ]; then
-		cp "$IMAGE_PATH" .
+		cp "$IMAGE_PATH" $TMP_DIR/
+	else
+		printf "$IMAGE already exists in $PWD. Using existing one.\n"
+		mv $IMAGE $TMP_DIR/
 	fi
 
-	image=`basename "$IMAGE_PATH"`
-
 	# since we take the u-boot.bin image, let's rename it to uboot.nb0
-	if [ "$image" == "u-boot.bin" ]; then
-		mv $image uboot.nb0
-		image=uboot.nb0
+	if [ "$TMP_DIR/$IMAGE" == "u-boot.bin" ]; then
+		mv $TMP_DIR/$IMAGE $TMP_DIR/uboot.nb0
+		$TMP_DIR/IMAGE=uboot.nb0
 	fi
 }
 
@@ -141,120 +181,109 @@ function getImageToBeEncrypted()
 ###############################################################################
 # function: getImageType()
 #
-# parameters: $1: image name
+# parameters: -
 #
-# return: -
+# return:     -
 #
-#         LOAD_ADDRESS, IMAGE_NAME (global variable!!)
+#             load_address, image_name (global variable!!)
 #
 # description:
-# Returns the image type.
+# Check ImageType and set image_name and load address.
 #
 ###############################################################################
 function getImageType()
 {
 	# check magic numbers in given image
-	local MAGIC_NUMBER_N=`hexdump -n 4 -s 0x400 -e '"%x\n"' "$1"`
-	local NBOOT_LOADADDR=`hexdump -n 4 -s 0x414 -e '"%x\n"' "$1"`
-	local MAGIC_NUMBER_E=`hexdump -n 4 -s 0x40 -e '"%x\n"' "$1"`
-	local MAGIC_NUMBER_U=`hexdump -n 4 -s 0x3c -e '"%x\n"' "$1"`
-	local MAGIC_NUMBER_M4=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$1"`
-	local MAGIC_NUMBER_UIMAGE=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$1"`
-	local MAGIC_NUMBER_ZIMAGE=`hexdump -n 4 -s 0x24 -e '"%x\n"' "$1"`
-	local MAGIC_NUMBER_DEVTREE=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$1"`
-	local UBOOT_NUMBER=`hexdump -n 4 -s 0x20 -e '"%x\n"' "$1"`
+	local MAGIC_NUMBER_N=`hexdump -n 4 -s 0x400 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
+	local NBOOT_LOADADDR=`hexdump -n 4 -s 0x414 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
+	local MAGIC_NUMBER_E=`hexdump -n 4 -s 0x40 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
+	local MAGIC_NUMBER_U=`hexdump -n 4 -s 0x3c -e '"%x\n"' "$TMP_DIR/$IMAGE"`
+	local MAGIC_NUMBER_M4=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
+	local MAGIC_NUMBER_UIMAGE=`hexdump -n 4 -s 0x0 -e \
+	'"%x\n"' "$TMP_DIR/$IMAGE"`
+	local MAGIC_NUMBER_ZIMAGE=`hexdump -n 4 -s 0x24 -e \
+	'"%x\n"' "$TMP_DIR/$IMAGE"`
+	local MAGIC_NUMBER_DEVTREE_FIT_IMAGE=`hexdump -n 4 -s 0x0 -e \
+	'"%x\n"' "$TMP_DIR/$IMAGE"`
 
 	if [ "$MAGIC_NUMBER_N" == "402000d1" ]; then
-		LOAD_ADDRESS="$NBOOT_LOADADDR"
-		IMAGE_NAME="nboot_${CPU_ARCH}"
-		SIGN_SIZE=0x20
+		load_address="$NBOOT_LOADADDR"
+		image_name="nboot_${cpu_arch}"
+		TARGET_NAME="${image_name}_enc_${master_key}.bin"
+		# normally this will set by runFakeCST but NBoot doesn´t call this
+		# function so set the length manually because it´s always the same.
+		signed_image_length=10000
+		signed_image_length=`printf "%08d" $signed_image_length`
+		signing_size=0x100
 		printf "NBoot detected!\n"
 	elif [ "$MAGIC_NUMBER_U" == "12345678" ]; then
-		local TEMP_VAR=$(( 0x$UBOOT_NUMBER & 0xFFFF0000 ))
-		local UBOOT_CHECK_NUM=`printf "%x" "$TEMP_VAR"`
-		LOAD_ADDRESS="$UBOOT_CHECK_NUM"
-		IMAGE_NAME="uboot_${CPU_ARCH}"
-		SIGN_SIZE=0x80
+		local UBOOT_NUMBER=`hexdump -n 4 -s 0x20 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
+		local uboot_addr=$(( 0x$UBOOT_NUMBER & 0xFFFF0000 ))
+		local uboot_addr_hex=`printf "%x" "$uboot_addr"`
+		# set global variables
+		load_address="$uboot_addr_hex"
+		image_name="uboot_${cpu_arch}"
+		TARGET_NAME="${image_name}_enc_${master_key}.nb0"
+		signing_size=0x80
 		printf "U-Boot detected!\n"
 	elif [ "$MAGIC_NUMBER_UIMAGE" == "56190527" ]; then
-		local KERNEL_LOAD_ADDR=`hexdump -n 4 -s 0x14 -e '"%08x\n"' "$1"`
-		# change endianess
-		LOAD_ADDRESS=`echo ${KERNEL_LOAD_ADDR:6:2}${KERNEL_LOAD_ADDR:4:2}\
-${KERNEL_LOAD_ADDR:2:2}${KERNEL_LOAD_ADDR:0:2}`
-		IMAGE_NAME="uImage_${CPU_ARCH}"
-		SIGN_SIZE=0xe0
+		local kernel_load_addr=`hexdump -n 4 -s 0x14 -e '"%08x\n"' \
+		"$TMP_DIR/$IMAGE"`
+		# change endianess and set global variables
+		load_address=`echo ${kernel_load_addr:6:2}${kernel_load_addr:4:2}\
+${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
+		image_name="uImage_${cpu_arch}"
+		TARGET_NAME="${IMAGE}_enc_${master_key}"
+		signing_size=0xe0
 		printf "Legacy Image detected!\n"
 	elif [ "$MAGIC_NUMBER_ZIMAGE" == "16f2818" ]; then
-		if [ "$CPU_ARCH" == "sdq" ]; then
-			LOAD_ADDRESS=11000000
+		# set global variables
+		if [ "$cpu_arch" == "sdq" ]; then
+			load_address=11000000
 		else
-			LOAD_ADDRESS=81000000
+			load_address=81000000
 		fi
-		IMAGE_NAME="zImage_${CPU_ARCH}"
-		SIGN_SIZE=0xa0
+		image_name="zImage_${cpu_arch}"
+		TARGET_NAME="${IMAGE}_enc_${master_key}"
+		signing_size=0xa0
 		printf "zImage detected!\n"
-	elif [ "$MAGIC_NUMBER_DEVTREE" == "edfe0dd0" ]; then
-		if [ "$CPU_ARCH" == "sdq" ]; then
-			LOAD_ADDRESS=12000000
+	elif [ "$MAGIC_NUMBER_DEVTREE_FIT_IMAGE" == "edfe0dd0" ]; then
+		# set global variables
+		if [ "$cpu_arch" == "sdq" ]; then
+			load_address=12000000
 		else
-			LOAD_ADDRESS=82000000
+			load_address=82000000
 		fi
-		if [ "`grep -cE "description|timestamp" $1`" -gt "1" ]; then
-			local FIT_IMAGE_OFFSET=1000000
-			let LOAD_ADDRESS="$LOAD_ADDRESS + $FIT_IMAGE_OFFSET"
+		if [ "`grep -cE "description|timestamp" $TMP_DIR/$IMAGE`" -gt "1" ]; \
+		then
+			local fit_image_offset=1000000
+			let load_address="$load_address + $fit_image_offset"
 			printf "FIT image detected!\n"
 		else
 			printf "Device Tree detected!\n"
 		fi
-		IMAGE_NAME="devtree_fit-image"
-		SIGN_SIZE=0xa0
+		image_name="devtree_fit-image"
+		TARGET_NAME="${IMAGE}_enc_${master_key}"
+		signing_size=0xa0
 	elif [ "$MAGIC_NUMBER_E" == "43454345" ] || \
 			[ "$MAGIC_NUMBER_M4" == "4d344d34" ]; then
 		printf "E-Boot/M4 image not yet supported! Aborting....\n"
+		rm -r $TMP_DIR
 		exit 1
 	else
 		printf "Image type not supported! Aborting....\n"
+		rm -r $TMP_DIR
 		exit 1
 	fi
 
-	if [ -n "$CUSTOM_LOAD_ADDRESS" ]; then
-		LOAD_ADDRESS=$CUSTOM_LOAD_ADDRESS
+	if [ -n "$custom_load_address" ]; then
+		load_address=$custom_load_address
 	fi
 }
 
 
 ###############################################################################
-# function: makeEncryptedImage()
-#
-# parameters: $1: IMAGE_NAME
-#
-#
-#
-# return: -
-#
-# description:
-# This function creates the signed image (by calling setSignedCSFfile()).
-#
-###############################################################################
-function makeEncryptedImage()
-{
-	if [[ "$1" != *"nboot"* ]]; then
-		local IVT_FILE=`echo "${1}_ivt.bin"`
-		local IMAGE_IVT=`echo "${1}_ivt"`
-		# append image to the created IVT file
-		cat $IVT_FILE $image > $IMAGE_IVT
-		rm $IVT_FILE
-		mv $IMAGE_IVT $image
-	fi
-
-	setEncryptedCSFfile $1
-
-	return $?
-}
-
-
-###############################################################################
-# function: setEncryptedCSFfile()
+# function: createEncryptedImage()
 #
 # parameters: $1: IMAGE_NAME
 #
@@ -266,111 +295,111 @@ function makeEncryptedImage()
 # globalvariable!!
 #
 ###############################################################################
-function setEncryptedCSFfile()
+function createEncryptedImage()
 {
-	local SIZE=$SIGN_SIZE
-	local OFFSET_ENC=$SIGN_SIZE
-	local OFFSET=0x0
-	local ADDR=0x"$LOAD_ADDRESS"
-	local SIZE_DEC=$(stat -c %s "$image")
-	local KEY_ADDR=0x`printf "%08x" $(($SIZE_DEC+$ADDR))`
-	local IMAGE_SIZE=0x$BOOT_DATA_LENGTH
-	local ADDR_DEC=$(($ADDR + $SIZE))
-	ADDR_DEC=0x`printf "%08x" "$ADDR_DEC"`
-	TARGET="${IMAGE_NAME}_enc_${MASTER_KEY}"
+	local load_address_hex=0x"$load_address"
+	local image_size=$(stat -c %s "$TMP_DIR/$IMAGE")
+	local signing_offset=0x0
+	local encrypting_address=0
+	local encrypting_offset=0
+	local encrypting_length=$image_size
+	local key_addr=0x`printf "%08x" $(($load_address_hex+$image_size))`
 
-	cp boot_in.csf boot_in.csf_temp
+	image_size=0x`printf "%08x" "$image_size"`
+	encrypting_address=0x`printf "%08x" $(($load_address_hex+$signing_size))`
+	# length minus 48 Bytes are signed
+	encrypting_length=0x`printf "%08x" $(($encrypting_length-$signing_size))`
 
-	# length minus $SIZE are signed
-	SIZE_DEC=0x`printf "%08x" $(($SIZE_DEC-$SIZE))`
-
-	if [[ "$1" == *"nboot"* ]]; then
-		OFFSET=0x400
-		local TRUNCATE_SIZE=`grep -a -o -b "##CSF##" "$image" | \
-		sed -e "s/:.*//"`
-		KEY_ADDR=0x`printf "%08x" $(($TRUNCATE_SIZE+$ADDR-$OFFSET))`
+	if [[ "$image_name" == *"nboot"* ]]; then
+		local key_offset=0
+		local csf_offset=0
+		# signing begins at offset 0x400
+		signing_offset=0x400
+		# get offset where signature must be located. This is also the length
+		# of the image without signature.
+		image_size=`grep -a -o -b "##CSF##" "$TMP_DIR/$IMAGE" | \
+				sed -e "s/:.*//"`
+		# cut NBoot image at ###CSF###
+		truncate -s $image_size $TMP_DIR/$IMAGE
+		# start address of dek_blob key
+		key_addr=0x`printf "%08x" $(($load_address_hex + $image_size - \
+$signing_offset))`
+		# key offset
+		key_offset=$image_size
+		# convert to size in hex
+		image_size=0x`printf "%x" "$image_size"`
 		if [ "$?" != "0" ]; then
-			printf "\nFunction setEncryptedCSFFile() failed! Aborting....\n\n"
-			rm boot_in.csf 1> /dev/null
+			printf "\nFunction createSignedImage() failed! Aborting....\n\n"
+			rm -r $TMP_DIR
 			return 1
 		fi
-		if [ "$KEY_LENGTH" == "128" ]; then
-			local CSF_ADDR_TEMP="$[KEY_ADDR + 0x48]"      # 72 Bytes
-		elif [ "$KEY_LENGTH" == "192" ]; then
-			local CSF_ADDR_TEMP="$[KEY_ADDR + 0x50]"      # 80 Bytes
-		elif [ "$KEY_LENGTH" == "256" ]; then
-			local CSF_ADDR_TEMP="$[KEY_ADDR + 0x58]"      # 88 Bytes
+		# signing size begins at offset 0x400 till end of image
+		let image_size="$image_size - 0x400"
+		# convert to size in hex
+		image_size=0x`printf "%x" "$image_size"`
+
+		# key_offset
+		if [ "$key_length" == "128" ]; then
+			csf_offset="$[key_offset + 0x48]"      # 72 Bytes
+		elif [ "$key_length" == "192" ]; then
+			csf_offset="$[key_offset + 0x50]"      # 80 Bytes
+		elif [ "$key_length" == "256" ]; then
+			csf_offset="$[key_offset + 0x58]"      # 88 Bytes
 		fi
 
-		SIZE_DEC="$[TRUNCATE_SIZE -0x500]"
-		local CSF_ADDR=`printf "%08x" "$CSF_ADDR_TEMP"`
-
-		local temp=`echo ${CSF_ADDR:6:2}${CSF_ADDR:4:2}${CSF_ADDR:2:2}\
-${CSF_ADDR:0:2}`
-		local out=`echo -n -e $temp | sed -e 's/.\{2\}/&\\\x/g'`
-		temp=\\x$out
-		out=${temp::-2}
-		printf $out | dd conv=notrunc status=none of=$image bs=1 \
+		# hex value
+		csf_offset=`printf "%08x" $(($csf_offset + $load_address_hex - \
+$signing_offset))`
+		# change endian
+		local csf_offset_bin=`echo ${csf_offset:6:2}${csf_offset:4:2}\
+${csf_offset:2:2}${csf_offset:0:2}`
+		# insert \x every Byte so it can interpreted as a binary file
+		local out=`echo -n -e $csf_offset_bin | sed -e 's/.\{2\}/&\\\x/g'`
+		# insert \x at the beginning
+		csf_offset_bin=\\x$out
+		# remove \x at the end
+		out=${csf_offset_bin::-2}
+		# replace 32 bit value at image offset 0x418. Replace image csf address
+		# with new calculated csf address.
+		printf $out | dd conv=notrunc status=none of=$TMP_DIR/$IMAGE bs=1 \
 		seek=$((0x418))
-		truncate -s $TRUNCATE_SIZE $image
-
-		# set output name
-		TARGET="${TARGET}.bin"
-		IMAGE_SIZE=0x10000
-	else
-		if [[ "$1" == *"uboot"* ]]; then
-			TARGET="${TARGET}.nb0"
-		elif [ "$1" == "devtree_fit-image" ]; then
-			TARGET="${image}_enc_${MASTER_KEY}"
-		fi
+		# encrypting length
+		encrypting_length=0x`printf "%08x" $(($image_size-$signing_size))`
 	fi
 
-	# make SIZE_DEK a multiple of 16
-	SIZE_DEC=`echo $(( SIZE_DEC / 16 ))`
-	SIZE_DEC=`echo $(( SIZE_DEC * 16 ))`
-	SIZE_DEC=0x`printf "%x" "$SIZE_DEC"`
+	# calculate encrypting offset (start address)
+	encrypting_offset=0x`printf "%x" $(($signing_offset+$signing_size))`
 
-	sed -e "s/###ADDR###/$ADDR/" -e "s/###OFFSET###/$OFFSET/" \
-		-e "s/###SIZE###/$SIZE/" -e "s/###BOOT###/$image/" \
-		-e "s/###length###/$KEY_LENGTH/" -e "s/###KEY_ADDR###/$KEY_ADDR/" \
-		-e "s/###ADDR_DEC###/$ADDR_DEC/" -e "s/###OFFSET_ENC###/$OFFSET_ENC/" \
-		-e "s/###SIZE_DEC###/$SIZE_DEC/" -e "s/###ENGINE###/$ENGINE/" \
-		boot_in.csf > boot_in.csf_temp
+	# make encrypting_length a multiple of 16
+	encrypting_length=`echo $(( encrypting_length / 16 ))`
+	encrypting_length=`echo $(( encrypting_length * 16 ))`
+	encrypting_length=0x`printf "%x" "$encrypting_length"`
 
-	if [ "$?" != "0" ]; then
-		printf "\nFunction setEncryptedCSFFile() failed! Aborting....\n\n"
-		rm boot_in.csf 1> /dev/null
-		rm boot_in.csf_temp 1> /dev/null
-		return 1
-	fi
+	sed -e "s/###ADDR###/$load_address_hex/" \
+	-e "s/###OFFSET###/$signing_offset/" -e "s/###SIZE###/$signing_size/" \
+	-e "s|###BOOT###|$TMP_DIR/$IMAGE|" -e "s/###length###/$key_length/" \
+	-e "s/###KEY_ADDR###/$key_addr/" \
+	-e "s/###ADDR_DEC###/$encrypting_address/" \
+	-e "s/###OFFSET_ENC###/$encrypting_offset/" \
+	-e "s/###SIZE_DEC###/$encrypting_length/" -e "s/###ENGINE###/$engine/" \
+	"$TMP_DIR/$BOOT_IN_CSF" > "$TMP_DIR/$BOOT_IN_CSF_FAKE"
 
-	if [ "$MASTER_KEY" == "otpmk" ]; then
-		sed -e "s/###MASTER_KEY###/0/" boot_in.csf_temp > temp.csf
-		sed -e '21,$s/#//' temp.csf > boot_in.csf_temp
-		if [ "$?" != "0" ]; then
-			printf "\nFunction setEncryptedCSFFile() failed! Aborting....\n\n"
-			rm boot_in.csf 1> /dev/null
-			rm boot_in.csf_temp 1> /dev/null
-			rm temp.csf 1> /dev/null
-			return 1
-		fi
-		cp -r boot_in.csf_temp temp.csf
-	fi
-
-	rm boot_in.csf_temp
-	cp -r temp.csf boot_in.csf
-	rm temp.csf
-
+	if [ "$master_key" == "otpmk" ]; then
+		sed -e "s/###MASTER_KEY###/0/" $TMP_DIR/$BOOT_IN_CSF_FAKE > \
+		$TMP_DIR/$BOOT_IN_CSF_FAKE_2
+		sed -e '21,$s/#//' $TMP_DIR/$BOOT_IN_CSF_FAKE_2 > \
+		$TMP_DIR/$BOOT_IN_CSF_FAKE
+    fi
+	mv $TMP_DIR/$BOOT_IN_CSF_FAKE $TMP_DIR/$BOOT_IN_CSF
 	# generate no output on stdout
-	$CST_BINARY --o csf.bin --i  boot_in.csf
+	$CST_BINARY --o $TMP_DIR/$CSF_BIN --i $TMP_DIR/$BOOT_IN_CSF
 	if [ "$?" != "0" ]; then
 		printf "\nCan not create signature! Aborting....\n\n"
-		rm csf.bin 1> /dev/null
-		rm dek_blob.bin 1> /dev/null
-		rm boot_in.csf
+		rm -r $TMP_DIR
 		return 1
 	fi
 
+	# copy key to tftpboot folder if exists
 	if [ -d /tftpboot ]; then
 		cp dek.bin /tftpboot
 		rm dek.bin
@@ -381,35 +410,40 @@ ${CSF_ADDR:0:2}`
 		fi
 	fi
 
-	getDekBlob $KEY_LENGTH
+	# parse dek_blob and copy to $TMP_DIR/$DEK_BLOB
+	getDekBlob $key_length
 
 	if [ -n "$OUTPUT_NAME" ]; then
-		TARGET="$OUTPUT_NAME"
+		TARGET_NAME="$OUTPUT_NAME"
 	fi
 
-	cat $image dek_blob.bin > $TARGET-temp
-	rm dek_blob.bin
-	rm $image
-	cat $TARGET-temp csf.bin > $TARGET
-	rm $TARGET-temp
-	rm csf.bin
-	rm boot_in.csf
+	# merge image + signature together
+	cat $TMP_DIR/$IMAGE $TMP_DIR/$DEK_BLOB > $TMP_DIR/$TMP_IMAGE
+	cat $TMP_DIR/$TMP_IMAGE $TMP_DIR/$CSF_BIN > $TMP_DIR/$TARGET_NAME
 
 	# check if NBoot image bigger than 0xd800
-	SIZE=$(stat -c %s "$TARGET")
-	if [[ $SIZE -gt 0xd800 ]] && [[ "$1" == *"nboot"* ]]; then
+	image_size=$(stat -c %s "$TMP_DIR/$TARGET_NAME")
+	if [[ $image_size -gt 0xd800 ]] && [[ "$image_name" == *"nboot"* ]]; then
 		printf "${LIGHT_RED}Error max image size = 0xd800, current image "
-		printf "size = 0x%x!${NORMAL}\b\n" "$SIZE"
-		rm $TARGET
+		printf "size = 0x%x!${NORMAL}\b\n" "$image_size"
+		rm -r $TMP_DIR
+		return 1
+	elif [[ $image_size -gt 0x80000 ]] && \
+		 [[ "$image_name" == *"uboot"* ]]; then
+		printf "${LIGHT_RED}Error max image size = 0x80000, current image "
+		printf "size = 0x%x!${NORMAL}\b\n" "$image_size"
+		rm -r $TMP_DIR
 		return 1
 	else
-		objcopy -I binary -O binary --pad-to=$IMAGE_SIZE --gap-fill=0xFF \
-		$TARGET $TARGET
+		objcopy -I binary -O binary --pad-to=0x$signed_image_length \
+		--gap-fill=0xFF $TMP_DIR/$TARGET_NAME $TMP_DIR/$TARGET_NAME
 	fi
 
-	# create bin folder if not exists
+	# create bin folder if not exists and copy image
 	mkdir -p bin
-	\mv -f $TARGET bin
+	\cp $TMP_DIR/$TARGET_NAME bin
+	# delete temp files
+	rm -r $TMP_DIR
 
 	return 0
 }
@@ -449,281 +483,349 @@ function getDekBlob()
 	local str="$(cat test.txt)"
 	rm test.txt
 	rm dek_blob.txt
-	printf $str > dek_blob.bin
+	printf $str > $TMP_DIR/$DEK_BLOB
 }
 
 
 ###############################################################################
 # function: createIVTHeader()
 #
-# parameters: $1: basename of given file
-#             $2: variable IMAGE_NAME (internally name of file)
-# return: -
+# parameters: -
+#
+# return:     -
 #
 # description:
-# This function creates the IVT header (if necesarry) and adds it at the
-# beginning of the image.
+# This function creates the IVT header and adds it at the beginning of the
+# image.
 #
 ###############################################################################
 function createIVTHeader()
 {
-	local IVT_HEADER=402000D1
-	local IVT_TARGET=`echo "${2}_ivt.bin"`
-	local SELF_POINTER="$LOAD_ADDRESS"
-	local CSF_ADDR=$(stat -c %s "$1")
+	local ivt_header=402000D1
+	local IVT_TARGET=`echo "${image_name}_ivt.bin"`
+	local image_size=$(stat -c %s "$TMP_DIR/$IMAGE")
+	local csf_absolute_addr=0
 	local ZEROS=00000000
+	local boot_data_absolute_addr=0
+	local entry_point_addr=0
 
-	let local BOOT_DATA="$LOAD_ADDRESS + 20"
+	let boot_data_absolute_addr="$load_address + 20"
+	let entry_point_addr="$load_address + 40"
 
-	if [[ "$2" == *"uImage"* ]] || [ "$2" == "devtree_fit-image" ]; then
-		let local ENTRY_POINT="$LOAD_ADDRESS + 40"
-	else
-		let local ENTRY_POINT="$BOOT_DATA"
-	fi
-
-	if [ "$KEY_LENGTH" == "128" ]; then
-		let CSF_ADDR="$CSF_ADDR + 0x48"
-	elif [ "$KEY_LENGTH" == "192" ]; then
-		let CSF_ADDR="$CSF_ADDR + 0x50"
-	elif [ "$KEY_LENGTH" == "256" ]; then
-		let CSF_ADDR="$CSF_ADDR + 0x58"
-	fi
-
-	local temp=`echo ${IVT_HEADER:6:2}${IVT_HEADER:4:2}${IVT_HEADER:2:2}\
-${IVT_HEADER:0:2}`
+	### -> HEADER <- ###
+	# change big endians to little endians
+	local temp=`echo ${ivt_header:6:2}${ivt_header:4:2}${ivt_header:2:2}\
+${ivt_header:0:2}`
+	# insert \x every Byte so it can interpreted as a binary file
 	local out=`echo -n -e $temp | sed -e 's/.\{2\}/&\\\x/g'`
-
+	# insert \x at the beginning
 	temp=\\x$out
+	# remove \x at the end
 	final=${temp::-2}
-	echo -n -e $final > $IVT_TARGET
+	echo -n -e $final > $TMP_DIR/$IVT_TARGET
 
-	temp=`echo ${ENTRY_POINT:6:2}${ENTRY_POINT:4:2}${ENTRY_POINT:2:2}\
-${ENTRY_POINT:0:2}`
+	### -> ENTRY <- ###
+	# change big endians to little endians
+	temp=`echo ${entry_point_addr:6:2}${entry_point_addr:4:2}\
+${entry_point_addr:2:2}${entry_point_addr:0:2}`
+	# insert \x every Byte so it can interpreted as a binary file
 	out=`echo -n -e $temp | sed -e 's/.\{2\}/&\\\x/g'`
+	# insert \x at the beginning
 	temp=\\x$out
+	# remove \x at the end
 	final=${temp::-2}
-	echo -n -e $final >> $IVT_TARGET
+	echo -n -e $final >> $TMP_DIR/$IVT_TARGET
 
+	### -> RESERVED1 and DCD <- ###
+	# insert \x every Byte so it can interpreted as a binary file
 	out=`echo -n -e $ZEROS | sed -e 's/.\{2\}/&\\\x/g'`
+	# insert \x at the beginning
 	temp=\\x$out
 	local zeroes=${temp::-2}
-	echo -n -e $zeroes >> $IVT_TARGET
-	echo -n -e $zeroes >> $IVT_TARGET
+	echo -n -e $zeroes >> $TMP_DIR/$IVT_TARGET
+	echo -n -e $zeroes >> $TMP_DIR/$IVT_TARGET
 
-	temp=`echo ${BOOT_DATA:6:2}${BOOT_DATA:4:2}${BOOT_DATA:2:2}\
-${BOOT_DATA:0:2}`
-
+	### -> BOOT_DATA <- ###
+	# change big endians to little endians
+	temp=`echo ${boot_data_absolute_addr:6:2}${boot_data_absolute_addr:4:2}\
+${boot_data_absolute_addr:2:2}${boot_data_absolute_addr:0:2}`
+	# insert \x every Byte so it can interpreted as a binary file
 	out=`echo -n -e $temp | sed -e 's/.\{2\}/&\\\x/g'`
-
+	# insert \x at the beginning
 	temp=\\x$out
+	# remove \x at the end
 	final=${temp::-2}
-	echo -n -e $final >> $IVT_TARGET
+	echo -n -e $final >> $TMP_DIR/$IVT_TARGET
 
-	temp=`echo ${SELF_POINTER:6:2}${SELF_POINTER:4:2}${SELF_POINTER:2:2}\
-${SELF_POINTER:0:2}`
+	### -> SELF <- ###
+	# selfpointer = load_address, because ivt have no offset
+	# change big endians to little endians
+	temp=`echo ${load_address:6:2}${load_address:4:2}${load_address:2:2}\
+${load_address:0:2}`
+	# insert \x every Byte so it can interpreted as a binary file
 	out=`echo -n -e $temp | sed -e 's/.\{2\}/&\\\x/g'`
+	# insert \x at the beginning
 	temp=\\x$out
+	# remove \x at the end
 	final=${temp::-2}
-	echo -n -e $final >> $IVT_TARGET
+	echo -n -e $final >> $TMP_DIR/$IVT_TARGET
 
-	if [[ "$2" == *"uImage"* ]] || [ "$2" == "devtree_fit-image" ]; then
-		CSF_ADDR=`printf "%d "$(($CSF_ADDR-32))`
+	### -> CSF <- ###
+	# increment image_size depending on the key_length
+	if [ "$key_length" == "128" ]; then
+		let image_size="$image_size + 0x48"
+	elif [ "$key_length" == "192" ]; then
+		let image_size="$image_size + 0x50"
+	elif [ "$key_length" == "256" ]; then
+		let image_size="$image_size + 0x58"
 	fi
-
-	CSF_ADDR=`printf "%08x" $CSF_ADDR`
-	CSF_ADDR=`printf "%08x" $((0x$CSF_ADDR+0x$ENTRY_POINT))`
-
-	temp=`echo ${CSF_ADDR:6:2}${CSF_ADDR:4:2}${CSF_ADDR:2:2}${CSF_ADDR:0:2}`
+	# in createBootDataHeader the image itself is merged with boot_data_header
+	# so if we stat the image here the $image_size => sizeof image +
+	# boot_data-header so we have subtract the boot_data_header to get the real
+	# image size. Boot_data_header has a fix size 0x20 => 32 (decimal).
+	image_size=`printf "%d "$(($image_size-32))`
+	image_size=`printf "%08x" $image_size`
+	csf_absolute_addr=`printf "%08x" $((0x$image_size+0x$entry_point_addr))`
+	# change big endians to little endians
+	temp=`echo ${csf_absolute_addr:6:2}${csf_absolute_addr:4:2}\
+${csf_absolute_addr:2:2}${csf_absolute_addr:0:2}`
+	# insert \x every Byte so it can interpreted as a binary file
 	out=`echo -n -e $temp | sed -e 's/.\{2\}/&\\\x/g'`
+	# insert \x at the beginning
 	temp=\\x$out
+	# remove \x at the end
 	final=${temp::-2}
-	echo -n -e $final >> $IVT_TARGET
+	echo -n -e $final >> $TMP_DIR/$IVT_TARGET
 
+	### -> RESERVED2 <- ###
+	# insert \x every Byte so it can interpreted as a binary file
 	out=`echo -n -e $ZEROS | sed -e 's/.\{2\}/&\\\x/g'`
+	# insert \x at the beginning
 	temp=\\x$out
+	# remove \x at the end
 	final=${temp::-2}
-	echo -n -e $final >> $IVT_TARGET
+	echo -n -e $final >> $TMP_DIR/$IVT_TARGET
+
+	# merge IVT and image together
+	cat $TMP_DIR/$IVT_TARGET $TMP_DIR/$IMAGE > $TMP_DIR/$TMP_IMAGE
+	mv $TMP_DIR/$TMP_IMAGE $TMP_DIR/$IMAGE
 }
 
 
 ###############################################################################
 # function: createBootDataHeader()
 #
-# parameters: $1: basename of given file
-#             $2: variable IMAGE_NAME (internally name of file)
-# return: -
+# parameters: -
+#
+# return:     -
 #
 # description:
-# This function creates the BOOT DATA header (if necesarry) and adds it at the
-# beginning of the image.
+# This function creates the BOOT DATA header and adds it at the beginning of
+# the image.
 #
 ###############################################################################
 function createBootDataHeader()
 {
-	local ZEROS=00000000
-	local FF_PAD=FFFFFFFF
-	local DATA_TARGET=`echo "${2}_boot_data.bin"`
+	local zero_pad=00000000
+	local zero_pad_bin=0
+	local ff_pad=FFFFFFFF
+	local ff_pad_bin=0
+	local load_addr_bin=0
+	local img_length_total_le=0
+	local img_length_total_le_bin=0
+	local temp_value=0
+	local BOOT_DATA_HEADER=`echo "${image_name}_boot_data.bin"`
+	local image_size=$(stat -c %s "$TMP_DIR/$IMAGE")
 
-	if [[ "$2" == *"uImage"* ]]; then
-		local temp_addr=`echo -n -e $LOAD_ADDRESS | sed -e 's/.\{2\}/&\\\x/g'`
+	if [[ "$image_name" == *"uImage"* ]]; then
+		# insert \x every Byte so it can interpreted as a binary file
+		local load_addr_bin=`echo -n -e $load_address | \
+		sed -e 's/.\{2\}/&\\\x/g'`
 	else
-		local temp_addr=`echo ${LOAD_ADDRESS:6:2}${LOAD_ADDRESS:4:2}\
-${LOAD_ADDRESS:2:2}${LOAD_ADDRESS:0:2}`
-		temp_addr=`echo -n -e $temp_addr | sed -e 's/.\{2\}/&\\\x/g'`
+		# change big endians to little endians
+		load_addr_bin=`echo ${load_address:6:2}${load_address:4:2}\
+${load_address:2:2}${load_address:0:2}`
+		# insert \x every Byte so it can interpreted as a binary file
+		load_addr_bin=`echo -n -e $load_addr_bin | sed -e 's/.\{2\}/&\\\x/g'`
 	fi
 
-	local CSF_ADDR=$(stat -c %s "$1")
-	# round CSF_ADDR up to the next 0x10 boundary (left-adjusted)
-	CSF_ADDR=$((($CSF_ADDR+15)/16))
-	CSF_ADDR=$(($CSF_ADDR * 16))
+	# round image_size up to the next 0x10 boundary (left-adjusted)
+	image_size=$((($image_size+15)/16))
+	image_size=$(($image_size * 16))
 	# pad image to the next 0x10 boundary (left-adjusted)
-	objcopy -I binary -O binary --pad-to=$CSF_ADDR --gap-fill=0xFF $1 $1
+	objcopy -I binary -O binary --pad-to=$image_size --gap-fill=0xFF \
+	$TMP_DIR/$IMAGE $TMP_DIR/$IMAGE
 
-	runFakeCST "$2"
+	# call runFakeCST
+	runFakeCST
 
-	local temp_length=`echo ${BOOT_DATA_LENGTH:6:2}${BOOT_DATA_LENGTH:4:2}\
-${BOOT_DATA_LENGTH:2:2}${BOOT_DATA_LENGTH:0:2}`
+	# change big endians to little endians
+	img_length_total_le=`echo ${signed_image_length:6:2}\
+${signed_image_length:4:2}${signed_image_length:2:2}${signed_image_length:0:2}`
 
-	local out_zeros=`echo -n -e $ZEROS | sed -e 's/.\{2\}/&\\\x/g'`
-	local out_ffpad=`echo -n -e $FF_PAD | sed -e 's/.\{2\}/&\\\x/g'`
-	temp_length=`echo -n -e $temp_length | sed -e 's/.\{2\}/&\\\x/g'`
+	# insert \x every Byte so it can interpreted as a binary file
+	zero_pad_bin=`echo -n -e $zero_pad | sed -e 's/.\{2\}/&\\\x/g'`
+	ff_pad_bin=`echo -n -e $ff_pad | sed -e 's/.\{2\}/&\\\x/g'`
+	img_length_total_le_bin=`echo -n -e $img_length_total_le | \
+	sed -e 's/.\{2\}/&\\\x/g'`
 
-	local temp=\\x$temp_addr
-	local final=${temp::-2}
-	echo -n -e $final > $DATA_TARGET
+	# create boot data header as a binary
+	# insert \x at the beginning
+	temp_value=\\x$load_addr_bin
+	# remove \x at the end
+	temp_value=${temp_value::-2}
+	echo -n -e $temp_value > $TMP_DIR/$BOOT_DATA_HEADER
 
-	temp=\\x$temp_length
-	final=${temp::-2}
-	echo -n -e $final >> $DATA_TARGET
+	# insert \x at the beginning
+	temp_value=\\x$img_length_total_le_bin
+	# remove \x at the end
+	temp_value=${temp_value::-2}
+	echo -n -e $temp_value >> $TMP_DIR/$BOOT_DATA_HEADER
 
-	temp=\\x$out_zeros
-	final=${temp::-2}
-	echo -n -e $final >> $DATA_TARGET
+	# insert \x at the beginning
+	temp_value=\\x$zero_pad_bin
+	# remove \x at the end
+	temp_value=${temp_value::-2}
+	echo -n -e $temp_value >> $TMP_DIR/$BOOT_DATA_HEADER
 
-	temp=\\x$out_ffpad
-	final=${temp::-2}
-	echo -n -e $final >> $DATA_TARGET
+	# insert \x at the beginning
+	temp_value=\\x$ff_pad_bin
+	# remove \x at the end
+	temp_value=${temp_value::-2}
+	echo -n -e $temp_value >> $TMP_DIR/$BOOT_DATA_HEADER
 
-	temp=\\x$out_ffpad
-	final=${temp::-2}
-	echo -n -e $final >> $DATA_TARGET
+	# insert \x at the beginning
+	temp_value=\\x$ff_pad_bin
+	# remove \x at the end
+	temp_value=${temp_value::-2}
+	echo -n -e $temp_value >> $TMP_DIR/$BOOT_DATA_HEADER
 
-	temp=\\x$out_ffpad
-	final=${temp::-2}
-	echo -n -e $final >> $DATA_TARGET
+	# insert \x at the beginning
+	temp_value=\\x$ff_pad_bin
+	# remove \x at the end
+	temp_value=${temp_value::-2}
+	echo -n -e $temp_value >> $TMP_DIR/$BOOT_DATA_HEADER
 
-	temp=\\x$out_ffpad
-	final=${temp::-2}
-	echo -n -e $final >> $DATA_TARGET
+	# insert \x at the beginning
+	temp_value=\\x$ff_pad_bin
+	# remove \x at the end
+	temp_value=${temp_value::-2}
+	echo -n -e $temp_value >> $TMP_DIR/$BOOT_DATA_HEADER
 
-	temp=\\x$out_ffpad
-	final=${temp::-2}
-	echo -n -e $final >> $DATA_TARGET
+	# insert \x at the beginning
+	temp_value=\\x$ff_pad_bin
+	# remove \x at the end
+	temp_value=${temp_value::-2}
+	echo -n -e $temp_value >> $TMP_DIR/$BOOT_DATA_HEADER
 
-	cat $DATA_TARGET $1 > temp.out
-	mv temp.out $1
-	rm $DATA_TARGET
+	# merge boot_data_header and image together
+	cat $TMP_DIR/$BOOT_DATA_HEADER $TMP_DIR/$IMAGE > $TMP_DIR/$TMP_IMAGE
+	mv $TMP_DIR/$TMP_IMAGE $TMP_DIR/$IMAGE
 }
 
 
 ###############################################################################
 # function: runFakeCST()
 #
-# parameters: $1: image type
+# parameters: -
 #
+# return:     -
 #
-# return:     BOOT_DATA_LENGTH (global variable!!)
+#             signed_image_length (global variable!!)
 #
 #
 # description:
 # Runs the cst tool using fake options in order to create a temporary binary
-# csf file. We need this binary file to calculate the exact image length
-# (for the boot data header). The length is stored in BOOT_DATA_LENGTH
-# (global variable!!).
+# csf file. We need this binary file to calculate the exact image length (image
+# + signature) for the boot data header. The length is stored in
+# $signed_image_length (global variable!!).
 #
 ###############################################################################
 runFakeCST()
 {
-	case $1 in
+	case $image_name in
 		*nboot*)
-			BOOT_DATA_LENGTH=10000
-			BOOT_DATA_LENGTH=`printf "%08d" $BOOT_DATA_LENGTH`
+			# normally not called because ivt already exists
+			signed_image_length=10000
+			signed_image_length=`printf "%08d" $signed_image_length`
 			;;
 		*uboot_vyb*)
-			BOOT_DATA_LENGTH=60000
-			BOOT_DATA_LENGTH=`printf "%08d" $BOOT_DATA_LENGTH`
+			signed_image_length=60000
+			signed_image_length=`printf "%08d" $signed_image_length`
 			;;
 		*uboot*)
-			BOOT_DATA_LENGTH=80000
-			BOOT_DATA_LENGTH=`printf "%08d" $BOOT_DATA_LENGTH`
+			signed_image_length=80000
+			signed_image_length=`printf "%08d" $signed_image_length`
 			;;
 		*)
-			sed -e "s/###ADDR###/0x$LOAD_ADDRESS/" -e "s/###OFFSET###/0x0/" \
-				-e "s/###SIZE###/0x10/" -e "s/###BOOT###/$image/" \
-				-e "s/###length###/$KEY_LENGTH/" \
-				-e "s/###KEY_ADDR###/0x$LOAD_ADDRESS/" \
-				-e "s/###ADDR_DEC###/0x$LOAD_ADDRESS/" \
+			sed -e "s/###ADDR###/0x$load_address/" -e "s/###OFFSET###/0x0/" \
+				-e "s/###SIZE###/0x10/" -e "s|###BOOT###|$TMP_DIR/$IMAGE|" \
+				-e "s/###length###/$key_length/" \
+				-e "s/###KEY_ADDR###/0x$load_address/" \
+				-e "s/###ADDR_DEC###/0x$load_address/" \
 				-e "s/###OFFSET_ENC###/0x100/" -e "s/###SIZE_DEC###/0x10/" \
-				-e  "s/###MASTER_KEY###/0/" -e "s/###ENGINE###/$ENGINE/" \
-				boot_in.csf > boot_in.csf_temp
-			sed -e '21,$s/#//' boot_in.csf_temp > boot_fake.csf
-			cp $image ${image}-bak
+				-e  "s/###MASTER_KEY###/0/" -e "s/###ENGINE###/$engine/" \
+				"$TMP_DIR/$BOOT_IN_CSF" > "$TMP_DIR/$BOOT_IN_CSF_FAKE"
+			sed -e '21,$s/#//' "$TMP_DIR/$BOOT_IN_CSF_FAKE" > \
+			$TMP_DIR/$BOOT_IN_CSF_FAKE_2
+			# make save copy
+			cp $TMP_DIR/$IMAGE $TMP_DIR/${IMAGE}-bak
 
 			# suppress output generated by the cst tool
-			$CST_BINARY --o csf.bin --i boot_fake.csf \
-				1>/dev/null
+			$CST_BINARY --o $TMP_DIR/$CSF_BIN --i \
+			$TMP_DIR/$BOOT_IN_CSF_FAKE_2 1>/dev/null
 			if [ "$?" != "0" ]; then
-				printf "\nRunFakeCST failed!\n"
-				rm boot_fake.csf
-				rm csf.bin
-				rm ${image}-bak
+				printf "\nFunction runFakeCST() failed! Aborting ....\n\n"
+				rm -r $TMP_DIR
 				exit 1
 			fi
 
-			cat $image csf.bin > ${image}_fake
-			BOOT_DATA_LENGTH=$(stat -c %s "${image}_fake")
-			let BOOT_DATA_LENGTH="$BOOT_DATA_LENGTH + 1"
-			BOOT_DATA_LENGTH=$((($BOOT_DATA_LENGTH+15)/16))
-			BOOT_DATA_LENGTH=$(($BOOT_DATA_LENGTH * 16))
+			# setup signed_image_size
+			local image_size=$(stat -c %s "$TMP_DIR/${IMAGE}")
+			local signature_size=$(stat -c %s $TMP_DIR/$CSF_BIN)
+			let signed_image_length="$image_size + $signature_size + 1"
+			signed_image_length=$((($signed_image_length+15)/16))
+			signed_image_length=$(($signed_image_length * 16))
 			# add the 0x40 (64) Byte header (0x20 IVT, 0x20 BOOT_DATA)
-			let BOOT_DATA_LENGTH="$BOOT_DATA_LENGTH + 64"
+			let signed_image_length="$signed_image_length + 64"
 
 			# add key length to size
-			if [ "$KEY_LENGTH" == "128" ]; then
-				let BOOT_DATA_LENGTH="$BOOT_DATA_LENGTH + 0x48"
-			elif [ "$KEY_LENGTH" == "192" ]; then
-				let BOOT_DATA_LENGTH="$BOOT_DATA_LENGTH + 0x50"
-			elif [ "$KEY_LENGTH" == "256" ]; then
-				let BOOT_DATA_LENGTH="$BOOT_DATA_LENGTH + 0x58"
+			if [ "$key_length" == "128" ]; then
+				let signed_image_length="$signed_image_length + 0x48"
+			elif [ "$key_length" == "192" ]; then
+				let signed_image_length="$signed_image_length + 0x50"
+			elif [ "$key_length" == "256" ]; then
+				let signed_image_length="$signed_image_length + 0x58"
 			fi
 
-			BOOT_DATA_LENGTH=`printf "%08x" $BOOT_DATA_LENGTH`
-			rm ${image}_fake
-			rm boot_fake.csf
-			mv ${image}-bak $image
-			;;
+			signed_image_length=`printf "%08x" $signed_image_length`
+			# copy original image back
+			mv $TMP_DIR/${IMAGE}-bak $TMP_DIR/$IMAGE
+	    ;;
 	esac
 }
 
 
 # main function
 handleParameters "$@"
+setup_variables
 checkEncryptionTool
 setCertNumberEncrypting
 getImageToBeEncrypted
-getImageType $image
+getImageType
 
-if [[ "$IMAGE_NAME" != *"nboot"* ]]; then
-	createBootDataHeader $image $IMAGE_NAME enc
-	createIVTHeader $image $IMAGE_NAME
+if [[ "$image_name" != *"nboot"* ]]; then
+	createBootDataHeader
+	createIVTHeader
 fi
 
-makeEncryptedImage $IMAGE_NAME
+createEncryptedImage
 if [ "$?" == "0" ]; then
 	printf "${LIGHT_GREEN}Encrypted image (%s) successfully generated.
-			${NORMAL}\b\n" "$TARGET"
+			${NORMAL}\b\n" "$TARGET_NAME"
 	exit 0
 else
 	printf "\n${LIGHT_RED}Error, aborting...${NORMAL}\b\n"
 	exit 1
 fi
+

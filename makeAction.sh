@@ -232,7 +232,7 @@ fi
 # call subscripts (depending on "action")
 if [ "$action" == "create" ]; then
 	# call script for creating the certificates
-	./createCertificates.sh c "$cst_dir" "$srktool_binary"
+	./createCertificates.sh "$cst_dir" "$srktool_binary"
 elif [ "$action" == "jtag" ]; then
 	# call script for creating a JTAG response key
 	./jtag.sh "$jtag_resp_key"
