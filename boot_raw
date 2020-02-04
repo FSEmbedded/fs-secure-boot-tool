@@ -17,7 +17,9 @@
     Target index = 2
 [Authenticate Data]
     Verification index = 2
-    Blocks = ###ADDR### ###OFFSET### ###SIZE### "###BOOT###"
+#    Blocks = 0x907000 0x0 0x10 "###BOOT###", \
+#             ###ADDR### ###OFFSET### ###SIZE### "###BOOT###"
+#    Blocks = ###ADDR### ###OFFSET### ###SIZE### "###BOOT###"
 #[Install Secret Key]
 #    Verification index = ###MASTER_KEY###
 #    Target index = 0
