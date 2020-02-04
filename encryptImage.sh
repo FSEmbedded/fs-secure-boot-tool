@@ -137,7 +137,7 @@ function setCertNumberEncrypting()
 	$TMP_DIR/$BOOT_IN_CSF
 
 	if [ "$?" != "0" ]; then
-		printf "\nFunction setCertNumberSigning() failed! Aborting ....\n\n"
+		printf "\nFunction setCertNumberEncrypting() failed! Aborting ....\n\n"
 		rm -r $TMP_DIR
 		exit 1
 	fi
@@ -195,7 +195,6 @@ function getImageType()
 {
 	# check magic numbers in given image
 	local MAGIC_NUMBER_N=`hexdump -n 4 -s 0x400 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
-	local NBOOT_LOADADDR=`hexdump -n 4 -s 0x414 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
 	local MAGIC_NUMBER_E=`hexdump -n 4 -s 0x40 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
 	local MAGIC_NUMBER_U=`hexdump -n 4 -s 0x3c -e '"%x\n"' "$TMP_DIR/$IMAGE"`
 	local MAGIC_NUMBER_M4=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
@@ -207,14 +206,16 @@ function getImageType()
 	'"%x\n"' "$TMP_DIR/$IMAGE"`
 
 	if [ "$MAGIC_NUMBER_N" == "402000d1" ]; then
-		load_address="$NBOOT_LOADADDR"
+		load_address=907000
 		image_name="nboot_${cpu_arch}"
 		TARGET_NAME="${image_name}_enc_${master_key}.bin"
 		# normally this will set by runFakeCST but NBoot doesn´t call this
 		# function so set the length manually because it´s always the same.
 		signed_image_length=10000
 		signed_image_length=`printf "%08d" $signed_image_length`
-		signing_size=0x100
+		# length is 0x42c, but offset is 0x10 so new length is 0x41c
+		# sign NBoot till boot_data_header and the code afterwards is encrypted
+		signing_size=0x41c
 		printf "NBoot detected!\n"
 	elif [ "$MAGIC_NUMBER_U" == "12345678" ]; then
 		local UBOOT_NUMBER=`hexdump -n 4 -s 0x20 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
@@ -224,6 +225,7 @@ function getImageType()
 		load_address="$uboot_addr_hex"
 		image_name="uboot_${cpu_arch}"
 		TARGET_NAME="${image_name}_enc_${master_key}.nb0"
+		# sign image till uboot magic number and encrypt everything afterwards
 		signing_size=0x80
 		printf "U-Boot detected!\n"
 	elif [ "$MAGIC_NUMBER_UIMAGE" == "56190527" ]; then
@@ -233,8 +235,9 @@ function getImageType()
 		load_address=`echo ${kernel_load_addr:6:2}${kernel_load_addr:4:2}\
 ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 		image_name="uImage_${cpu_arch}"
-		TARGET_NAME="${IMAGE}_enc_${master_key}"
-		signing_size=0xe0
+		TARGET_NAME="${image_name}_enc_${master_key}"
+		# sign complete uImage header and encrypt code afterwards
+		signing_size=0x80
 		printf "Legacy Image detected!\n"
 	elif [ "$MAGIC_NUMBER_ZIMAGE" == "16f2818" ]; then
 		# set global variables
@@ -244,8 +247,9 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 			load_address=81000000
 		fi
 		image_name="zImage_${cpu_arch}"
-		TARGET_NAME="${IMAGE}_enc_${master_key}"
-		signing_size=0xa0
+		TARGET_NAME="${image_name}_enc_${master_key}"
+		# sign image till zImage magic number and encrypt everything afterwards
+		signing_size=0x68
 		printf "zImage detected!\n"
 	elif [ "$MAGIC_NUMBER_DEVTREE_FIT_IMAGE" == "edfe0dd0" ]; then
 		# set global variables
@@ -264,7 +268,8 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 		fi
 		image_name="devtree_fit-image"
 		TARGET_NAME="${IMAGE}_enc_${master_key}"
-		signing_size=0xa0
+		# sign complete FIT/DT-Image header and encrypt code afterwards
+		signing_size=0x68
 	elif [ "$MAGIC_NUMBER_E" == "43454345" ] || \
 			[ "$MAGIC_NUMBER_M4" == "4d344d34" ]; then
 		printf "E-Boot/M4 image not yet supported! Aborting....\n"
@@ -299,57 +304,49 @@ function createEncryptedImage()
 {
 	local load_address_hex=0x"$load_address"
 	local image_size=$(stat -c %s "$TMP_DIR/$IMAGE")
+	local signing_address="$load_address_hex"
 	local signing_offset=0x0
 	local encrypting_address=0
 	local encrypting_offset=0
-	local encrypting_length=$image_size
+	local encrypting_length=0
 	local key_addr=0x`printf "%08x" $(($load_address_hex+$image_size))`
 
+	# image size in hex
 	image_size=0x`printf "%08x" "$image_size"`
-	encrypting_address=0x`printf "%08x" $(($load_address_hex+$signing_size))`
-	# length minus 48 Bytes are signed
-	encrypting_length=0x`printf "%08x" $(($encrypting_length-$signing_size))`
 
 	if [[ "$image_name" == *"nboot"* ]]; then
-		local key_offset=0
 		local csf_offset=0
-		# signing begins at offset 0x400
-		signing_offset=0x400
+		# signing begins at offset 0x14
+		signing_offset=0x14
 		# get offset where signature must be located. This is also the length
 		# of the image without signature.
 		image_size=`grep -a -o -b "##CSF##" "$TMP_DIR/$IMAGE" | \
 				sed -e "s/:.*//"`
 		# cut NBoot image at ###CSF###
 		truncate -s $image_size $TMP_DIR/$IMAGE
-		# start address of dek_blob key
-		key_addr=0x`printf "%08x" $(($load_address_hex + $image_size - \
-$signing_offset))`
-		# key offset
-		key_offset=$image_size
-		# convert to size in hex
-		image_size=0x`printf "%x" "$image_size"`
 		if [ "$?" != "0" ]; then
-			printf "\nFunction createSignedImage() failed! Aborting....\n\n"
+			printf "\nFunction createEncryptedImage() failed! Aborting....\n\n"
 			rm -r $TMP_DIR
 			return 1
 		fi
-		# signing size begins at offset 0x400 till end of image
-		let image_size="$image_size - 0x400"
-		# convert to size in hex
+		# convert image_size to hex value
 		image_size=0x`printf "%x" "$image_size"`
 
-		# key_offset
+		# start address of dek_blob key
+		key_addr=0x`printf "%08x" $(($load_address_hex + $image_size))`
+
+		# calc csf_offset
 		if [ "$key_length" == "128" ]; then
-			csf_offset="$[key_offset + 0x48]"      # 72 Bytes
+			csf_offset="$[key_addr + 0x48]"      # 72 Bytes
 		elif [ "$key_length" == "192" ]; then
-			csf_offset="$[key_offset + 0x50]"      # 80 Bytes
+			csf_offset="$[key_addr + 0x50]"      # 80 Bytes
 		elif [ "$key_length" == "256" ]; then
-			csf_offset="$[key_offset + 0x58]"      # 88 Bytes
+			csf_offset="$[key_addr + 0x58]"      # 88 Bytes
 		fi
 
-		# hex value
-		csf_offset=`printf "%08x" $(($csf_offset + $load_address_hex - \
-$signing_offset))`
+		# convert to hex value
+		csf_offset=`printf "%08x" $(($csf_offset))`
+
 		# change endian
 		local csf_offset_bin=`echo ${csf_offset:6:2}${csf_offset:4:2}\
 ${csf_offset:2:2}${csf_offset:0:2}`
@@ -363,10 +360,18 @@ ${csf_offset:2:2}${csf_offset:0:2}`
 		# with new calculated csf address.
 		printf $out | dd conv=notrunc status=none of=$TMP_DIR/$IMAGE bs=1 \
 		seek=$((0x418))
-		# encrypting length
-		encrypting_length=0x`printf "%08x" $(($image_size-$signing_size))`
 	fi
 
+	# setup signing_address
+	let signing_address="$load_address_hex + $signing_offset"
+	signing_address=0x`printf "%x" "$signing_address"`
+
+	# setup new encrypting address
+	encrypting_address=0x`printf "%08x" $(($load_address_hex + $signing_offset \
+	+ $signing_size))`
+	# length minus signing size
+	encrypting_length=0x`printf "%x" $(($image_size - $signing_offset - \
+	$signing_size))`
 	# calculate encrypting offset (start address)
 	encrypting_offset=0x`printf "%x" $(($signing_offset+$signing_size))`
 
@@ -375,7 +380,7 @@ ${csf_offset:2:2}${csf_offset:0:2}`
 	encrypting_length=`echo $(( encrypting_length * 16 ))`
 	encrypting_length=0x`printf "%x" "$encrypting_length"`
 
-	sed -e "s/###ADDR###/$load_address_hex/" \
+	sed -e "s/###ADDR###/$signing_address/" \
 	-e "s/###OFFSET###/$signing_offset/" -e "s/###SIZE###/$signing_size/" \
 	-e "s|###BOOT###|$TMP_DIR/$IMAGE|" -e "s/###length###/$key_length/" \
 	-e "s/###KEY_ADDR###/$key_addr/" \
