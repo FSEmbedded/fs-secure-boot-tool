@@ -160,7 +160,6 @@ function getImageType()
 {
 	# check magic numbers in given image
 	local MAGIC_NUMBER_N=`hexdump -n 4 -s 0x400 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
-	local NBOOT_LOADADDR=`hexdump -n 4 -s 0x414 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
 	local MAGIC_NUMBER_E=`hexdump -n 4 -s 0x40 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
 	local MAGIC_NUMBER_U=`hexdump -n 4 -s 0x3c -e '"%x\n"' "$TMP_DIR/$IMAGE"`
 	local MAGIC_NUMBER_M4=`hexdump -n 4 -s 0x0 -e '"%x\n"' "$TMP_DIR/$IMAGE"`
@@ -172,7 +171,7 @@ function getImageType()
 	'"%x\n"' "$TMP_DIR/$IMAGE"`
 
 	if [ "$MAGIC_NUMBER_N" == "402000d1" ]; then
-		load_address="$NBOOT_LOADADDR"
+		load_address=907000
 		image_name="nboot_${cpu_arch}"
 		TARGET_NAME="${image_name}_signed.bin"
 		# normally this will set by runFakeCST but NBoot doesn´t call this
@@ -259,33 +258,41 @@ function createSignedImage()
 {
 	local load_address_hex=0x"$load_address"
 	local image_size=$(stat -c %s "$TMP_DIR/$IMAGE")
+	local signing_address="$load_address_hex"
+	local signing_size="$image_size"
 	local signing_offset=0x0
 	image_size=0x`printf "%08x" "$image_size"`
 
 	if [[ "$image_name" == *"nboot"* ]]; then
-		# signing begins at offset 0x400
-		signing_offset=0x400
+		# signing begins at offset 0x14
+		signing_offset=0x14
+
 		# get offset where signature must be located. This is also the length
 		# of the image without signature.
 		image_size=`grep -a -o -b "##CSF##" "$TMP_DIR/$IMAGE" | \
 				sed -e "s/:.*//"`
 		# cut NBoot image at ###CSF###
 		truncate -s $image_size $TMP_DIR/$IMAGE
-		# convert to size in hex
-		image_size=0x`printf "%x" "$image_size"`
 		if [ "$?" != "0" ]; then
 			printf "\nFunction createSignedImage() failed! Aborting....\n\n"
 			rm -r $TMP_DIR
 			return 1
 		fi
-		# signing size begins at offset 0x400 till end of image
-		let image_size="$image_size - 0x400"
-		# convert to size in hex
+		# convert image_size to hex value
 		image_size=0x`printf "%x" "$image_size"`
+
+		# signing size begins at offset signing_offset till end of image
+		let signing_size="$image_size - $signing_offset"
+		# convert to size in hex
+		signing_size=0x`printf "%x" "$signing_size"`
 	fi
 
-	sed -e "s/###ADDR###/$load_address_hex/" \
-		-e "s/###OFFSET###/$signing_offset/" -e "s/###SIZE###/$image_size/" \
+	# setup signing_address
+	let signing_address="$load_address_hex + $signing_offset"
+	signing_address=0x`printf "%x" "$signing_address"`
+
+	sed -e "s/###ADDR###/$signing_address/" \
+		-e "s/###OFFSET###/$signing_offset/" -e "s/###SIZE###/$signing_size/" \
 		-e "s|###BOOT###|$TMP_DIR/$IMAGE|" -e "s/###ENGINE###/$engine/" \
 		$TMP_DIR/$BOOT_IN_CSF > $TMP_DIR/$BOOT_IN_CSF_FAKE
 
