@@ -1,6 +1,31 @@
 History of Changes for F&S Secure Boot Tool on F&S Boards and Modules
 =====================================================================
 
+fs-secure-boot-tool-V2020.02 (10.02.2020)
+----------------------------------------
+Supported CPUs: i.MX6 S/DL/D/Q, i.MX6 SX, i.MX6 UL, i.MX6 ULL
+
+- Update .gitignore file
+- Add signing for first 0x10 Bytes of NBoot
+- Improve calculation of addresses in encryptImage.sh
+- Improve calculation of addresses in signImage.sh
+- Improve variables in bash scripts
+- Improve round image command in signImage.sh/encryptImage.sh
+- Add error handling for encryptImage.sh
+- Add error handling for signImage.sh
+- Add error handling for jtag.sh
+- Add error handling for createCertificates.sh
+- Add error handling for makeAction.sh
+- Add error handling to generate.sh
+- Set dynamically path to CST in boot_raw_edited
+- Improve coding style
+- Improve signing size for encrpyt Image
+- Add setup path to cst by environment variable
+- Improve loadaddresses of zImage and device-tree
+- Add support sign/encrypt zImages
+
+
+
 fs-secure-boot-tool-2019.02 (31.01.2019)
 ----------------------------------------
 Supported CPUs: i.MX6 S/DL/D/Q, i.MX6 SX, i.MX6 UL, i.MX6 ULL
