@@ -204,22 +204,40 @@ if [ "$action" == "create" ] || [ "$action" == "sign" ] || \
 	if [ -d "$cst_dir" ] ; then
 		host_version=`uname -m | grep "64"`
 		if [ ! -z $host_version ] ; then
-			cst_sign_binary=`find ${cst_dir} -type f -iname "cst" |\
-			tail -n 1`
-			cst_enc_binary="${cst_sign_binary}_encrypt"
 			srktool_binary=`find ${cst_dir} -type f -iname "srktool" |\
-			tail -n 1`
+			grep linux | tail -n 1`
+			read -a version <<< $(${CST_DIR}/linux64/bin/srktool -v)
+			version=${version[5]}
+			cst_sign_binary=`find ${cst_dir} -type f -iname "cst" |\
+			grep linux | tail -n 1`
 		else
-			cst_sign_binary=`find ${cst_dir} -type f -iname "cst" |\
-			head -n 1`
-			cst_enc_binary="${cst_sign_binary}_encrypt"
 			srktool_binary=`find ${cst_dir} -type f -iname "srktool" |\
-			tail -n 2 | head -n 1`
+			grep linux | tail -n 2 | head -n 1`
+			read -a version <<< $(${CST_DIR}/linux64/bin/srktool -v)
+			version=${version[5]}
+			cst_sign_binary=`find ${cst_dir} -type f -iname "cst" |\
+			grep linux | head -n 1`
 		fi
-		if [ -z $cst_sign_binary ] || [ -z $srktool_binary ] || \
-			[ -z $cst_enc_binary ]; then
-			printf "\n Unable setup variables cst_sign_binary, "
-			printf "cst_enc_binary and srktool_binary! Aborting....\n\n"
+		if [ -z $cst_sign_binary ] || [ -z $srktool_binary ]; then
+			printf "\n Unable setup variables cst_sign_binary "
+			printf "and srktool_binary! Aborting....\n\n"
+			exit 1
+		fi
+		if [ ${version:0:1} -eq 3 ]; then
+			if [ ${version:2:1} -ge 3 ]; then
+				cst_enc_binary="${cst_sign_binary}"
+			else
+				echo ${version:2:1}
+				cst_enc_binary="${cst_sign_binary}_encrypt"
+			fi
+		elif [ ${version:0:1} -lt 3 ]; then
+			cst_enc_binary="${cst_sign_binary}"
+		else
+			cst_enc_binary="${cst_sign_binary}_encrypt"
+		fi
+		if [ -z $cst_enc_binary ]; then
+			printf "\n Unable setup variable "
+			printf "cst_enc_binary! Aborting....\n\n"
 			exit 1
 		fi
 	else

@@ -46,7 +46,7 @@ function setup_variables()
 		exit 1
 	fi
 	# get path to keys folder
-	KEYS_DIR=`find ${CST_DIR} -type d -iname "keys"`
+	KEYS_DIR=`find ${CST_DIR} -type d -iname "keys"  | tail -n 1`
 	if [ ! -d "$KEYS_DIR" ]; then
 		printf "\nkeys folder not found! Aborting....\n\n"
 		exit 1
