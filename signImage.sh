@@ -61,6 +61,27 @@ function setup_variables()
 	load_address=0
 	image_name=0
 	signed_image_length=0
+	#sizes
+	field_size=4
+	header_size=64
+	#fs script offsets
+	fs_magic_fslx=0
+	fs_image_size_low=4
+	fs_imge_size_high=8
+	fs_type=16
+	fs_arch=32
+	#IVT offsets
+	ivt_header=0
+	ivt_entry=4
+	ivt_boot_data=16
+	ivt_self=20
+	ivt_csf=24
+	boot_data_start=32
+	boot_data_length=36
+	boot_data_plugin_flag=40
+	#special addresses
+	spl_addr=7E0400
+	download_addr=40480000
 }
 
 
@@ -169,6 +190,8 @@ function getImageType()
 	'"%x\n"' "$TMP_DIR/$IMAGE"`
 	local MAGIC_NUMBER_DEVTREE_FIT_IMAGE=`hexdump -n 4 -s 0x0 -e \
 	'"%x\n"' "$TMP_DIR/$IMAGE"`
+	local MAGIC_NUMBER_FS=`hexdump -n 4 -e '"%x"' "$TMP_DIR/$IMAGE"`
+	local MAGIC_NUMBER_N8=`hexdump -n 4 -s 16 -e '"%x"' "$TMP_DIR/$IMAGE"`
 
 	if [ "$MAGIC_NUMBER_N" == "402000d1" ]; then
 		load_address=907000
@@ -229,6 +252,10 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 		printf "E-Boot/M4 image not yet supported! Aborting....\n"
 		rm -r $TMP_DIR
 		exit 1
+	elif [ "$MAGIC_NUMBER_FS" == "584c5346" -a "$MAGIC_NUMBER_N8" == "4f4f424e" ]; then
+		image_name="nboot_${cpu_arch}"
+		TARGET_NAME="${image_name}_signed.fs"
+		load_address=$spl_addr
 	else
 		printf "Image type not supported! Aborting....\n"
 		rm -r $TMP_DIR
@@ -295,7 +322,6 @@ function createSignedImage()
 		-e "s/###OFFSET###/$signing_offset/" -e "s/###SIZE###/$signing_size/" \
 		-e "s|###BOOT###|$TMP_DIR/$IMAGE|" -e "s/###ENGINE###/$engine/" \
 		$TMP_DIR/$BOOT_IN_CSF > $TMP_DIR/$BOOT_IN_CSF_FAKE
-
 	if [[ "$image_name" == *"nboot"* ]]; then
 		sed -e "20 s/#//" -e "21 s/#//" $TMP_DIR/$BOOT_IN_CSF_FAKE > \
 		$TMP_DIR/$BOOT_IN_CSF
@@ -305,7 +331,7 @@ function createSignedImage()
 	fi
 
 	# generate no output on stdout
-	$CST_BINARY --o $TMP_DIR/$CSF_BIN --i $TMP_DIR/$BOOT_IN_CSF
+	$CST_BINARY --o $TMP_DIR/$CSF_BIN --i $TMP_DIR/$BOOT_IN_CSF > /dev/null
 	if [ "$?" != "0" ]; then
 		printf "\nCan not create signature! Aborting....\n\n"
 		rm -r $TMP_DIR
@@ -339,9 +365,11 @@ function createSignedImage()
 
 	# create bin folder if not exists
 	mkdir -p bin
-	\cp $TMP_DIR/$TARGET_NAME bin
-	# delete temp files
-	rm -r $TMP_DIR
+	# delete temp files if possible
+	if [ $cpu_arch != "8mm" ]; then
+		\cp $TMP_DIR/$TARGET_NAME bin
+		rm -r $TMP_DIR
+	fi
 
 	return 0
 }
@@ -368,9 +396,19 @@ function createIVTHeader()
 	local ZEROS=00000000
 	local boot_data_absolute_addr=0
 	local entry_point_addr=0
+	local self_addr=0
 
-	let boot_data_absolute_addr="$load_address + 20"
-	let entry_point_addr="$load_address + 40"
+	if [ -z $1 ]; then
+		offset=0
+	else
+		offset=$1
+	fi
+	let boot_data_absolute_addr="0x$load_address + 0x20 + $offset"
+	let entry_point_addr="0x$load_address + 0x40 + $offset"
+	let self_addr="0x$load_address + $offset"
+	boot_data_absolute_addr=$(printf "%08x" $boot_data_absolute_addr)
+	entry_point_addr=$(printf "%08x" $entry_point_addr)
+	self_addr=$(printf "%08x" $self_addr)
 
 	### -> HEADER <- ###
 	# change big endians to little endians
@@ -418,11 +456,12 @@ ${boot_data_absolute_addr:2:2}${boot_data_absolute_addr:0:2}`
 	echo -n -e $final >> $TMP_DIR/$IVT_TARGET
 
 	### -> SELF <- ###
-	# selfpointer = load_address, because ivt have no offset
+	# normally: selfpointer = load_address, because ivt have no offset
+	# i.MX8 N-Boot: selfpointer = load_addr + 0x40 because of the FS-Header
 	# change big endians to little endians
-	temp=`echo ${load_address:6:2}${load_address:4:2}${load_address:2:2}\
-${load_address:0:2}`
-	# insert \x every Byte so it can interpreted as a binary file
+	temp=`echo ${self_addr:6:2}${self_addr:4:2}${self_addr:2:2}\
+${self_addr:0:2}`
+	# insert \x every Byte so it can be interpreted as a binary file
 	out=`echo -n -e $temp | sed -e 's/.\{2\}/&\\\x/g'`
 	# insert \x at the beginning
 	temp=\\x$out
@@ -435,6 +474,8 @@ ${load_address:0:2}`
 	# so if we stat the image here the $image_size => sizeof image +
 	# boot_data-header so we have subtract the boot_data_header to get the real
 	# image size. Boot_data_header has a fix size 0x20 => 32 (decimal).
+	# For most i.MX8 N-Boot Images, the length is considered as the original
+	# Image length.
 	image_size=`printf "%d "$(($image_size-32))`
 	image_size=`printf "%08x" $image_size`
 	csf_absolute_addr=`printf "%08x" $((0x$image_size+0x$entry_point_addr))`
@@ -634,10 +675,595 @@ runFakeCST()
 			let signed_image_length="$signed_image_length + 64"
 			# setup as hex number
 			signed_image_length=`printf "%08x" $signed_image_length`
+			if [ $image_name == spl ]; then
+				signed_image_length=$(printf "%08x" \
+				$((0x$signed_image_length + 0x400)))
+			fi
 	    ;;
 	esac
 }
 
+###############################################################################
+# function: adjustField()
+#
+# parameters: $1 --> Input File
+#             $2 --> offset in file
+#             $3 --> 4 Byte Value to write (hex without 0x in front)
+#
+# return:     -
+#
+# description:
+# This function is used to change out 32 bit words in a file with a new one.
+# It is intended, but not limited, for use with FS-Headers or IVT structures.
+#
+# TODO: Currently the function uses the 'dd' function, which works, but is
+# slow. If there is a faster way, it may be implemented.
+#
+###############################################################################
+function adjustField
+{
+	INPUT_FILE=$1
+	start=$2
+	end=$(($2+$field_size))
+	value=$3
+
+	value=$(printf "%s%s%s%s" \
+		${value:6:2} ${value:4:2} ${value:2:2} ${value:0:2} | \
+		sed -e 's/.\{2\}/\\\x&/g')
+	dd if=${INPUT_FILE} of=${INPUT_FILE}_low bs=1 count=$start status=none
+	dd if=${INPUT_FILE} of=${INPUT_FILE}_high bs=1 skip=$end status=none
+	echo -n -e $value >> ${INPUT_FILE}_low
+	cat ${INPUT_FILE}_low ${INPUT_FILE}_high > $INPUT_FILE
+}
+
+###############################################################################
+# function: saveEnvironment()
+#
+# parameters: global variables
+#             --> image_name
+#             --> IMAGE
+#             --> TARGET_NAME
+#
+# return:     global variables
+#             --> image_name_back
+#             --> IMAGE_back
+#             --> TARGET_NAME_back
+#
+# description:
+# This function makes backup saves for certain variables, that need to be
+# changed during the signing process of the i.MX8 N-Boot. They contain
+# Information about the Input Image and the Target Image. The original Variables
+# are used by createSignedImage(). Because the signing Process needs to sign the
+# sub-Images, it needs to change them up frequently. So this backup is necessary
+# for later use.
+#
+###############################################################################
+function saveEnvironment
+{
+	image_name_back=$image_name
+	IMAGE_back=$IMAGE
+	TARGET_NAME_back=$TARGET_NAME
+}
+
+###############################################################################
+# function: PrepearEnvironment()
+#
+# parameters: $1 --> Name of the Image to be signed next.
+#
+# return:     global variables
+#             --> image_name
+#             --> IMAGE
+#             --> TARGET_NAME
+#
+# description:
+# This function sets up the Image and Target Variables for
+# create_signed_image()
+#
+###############################################################################
+function PrepearEnvironment
+{
+	image_name=$1
+	IMAGE=$1
+	TARGET_NAME=$1"_signed"
+}
+
+###############################################################################
+# function: restoreEnvironment()
+#
+# parameters: global variables
+#             --> image_name
+#             --> IMAGE
+#             --> TARGET_NAME
+#
+# return:     global variables
+#             --> image_name_back
+#             --> IMAGE_back
+#             --> TARGET_NAME_back
+#
+# description:
+# This function restores the saved environment, with the backup that has been
+# created in saveEnvironment()
+#
+###############################################################################
+function restoreEnvironment
+{
+	image_name=$image_name_back
+	IMAGE=$IMAGE_back
+	TARGET_NAME=$TARGET_NAME_back
+}
+
+###############################################################################
+# function: fsImageGetSizeAndOffset()
+#
+# parameters: $1 --> type of the current header
+#
+#             global Variables
+#             --> TMP_DIR
+#             --> IMAGE
+#             --> TARGET_NAME
+#
+# return:     dynamically named variables
+#             --> $1_size
+#             --> $1_offset
+#
+# description:
+# This function reads the size out of the next FS-Header in IMAGE for later
+# use. It also reads the current size of TARGET_NAME, so the Image can be found
+# later again in TARGET_IMAGE without the need for another calculation. This
+# way, the size field of the FS-Header can be adjusted, if needed later on more
+# easily.
+#
+###############################################################################
+function fsImageGetSizeAndOffset
+{
+	printf -v "${1}_size" '%d' 0x$(hexdump -v -s $fs_image_size_low -n \
+		$field_size -e'1/8 "%X"' $TMP_DIR/$IMAGE)
+	if [ -f $TMP_DIR/$TARGET_NAME ]; then
+		printf -v "${1}_offset" '%d' $(stat --printf=%s $TMP_DIR/$TARGET_NAME)
+	else
+		printf -v "${1}_offset" '%d' 0
+	fi
+}
+
+###############################################################################
+# function: skipFSHeader()
+#
+# parameters: global Variables
+#             --> TMP_DIR
+#             --> IMAGE
+#             --> TARGET_NAME
+#
+# return:     -
+#
+# description:
+# This function copies, the FS-Header in the beginning of IMAGE into
+# TARGET_NAME. Afterwards it deletes the Header from IMAGE.
+#
+###############################################################################
+function skipFSHeader
+{
+	dd if=$TMP_DIR/$IMAGE of=$TMP_DIR/$TARGET_NAME"temp" \
+		bs=1 count=$header_size status=none
+
+	cat $TMP_DIR/$TARGET_NAME $TMP_DIR/$TARGET_NAME"temp" \
+		>> $TMP_DIR/$TARGET_NAME 2>/dev/null
+
+	dd if=$TMP_DIR/$IMAGE of=$TMP_DIR/$IMAGE"temp" \
+		bs=1 skip=$header_size status=none
+
+	cp $TMP_DIR/$IMAGE"temp" $TMP_DIR/$IMAGE;
+	rm $TMP_DIR/$IMAGE"temp"
+	rm $TMP_DIR/$TARGET_NAME"temp"
+}
+
+###############################################################################
+# function: separateFSHeader()
+#
+# parameters: $1 --> type of the current header
+#
+#             global Variables
+#             --> TMP_DIR
+#             --> IMAGE
+#
+# return:     -
+#
+# description:
+# This function copies, the FS-Header in the beginning of IMAGE into its own
+# File. Afterwards it deletes the Header from IMAGE.
+#
+###############################################################################
+function separateFSHeader
+{
+	dd if=$TMP_DIR/$IMAGE of=$TMP_DIR/$1"_header" \
+		bs=1 count=$header_size status=none
+	dd if=$TMP_DIR/$IMAGE of=$TMP_DIR/$IMAGE"_temp" \
+		bs=1 skip=$header_size status=none
+	cp $TMP_DIR/$IMAGE"_temp" $TMP_DIR/$IMAGE;
+	rm $TMP_DIR/$IMAGE"_temp"
+}
+
+###############################################################################
+# function: separate_image()
+#
+# parameters: $1 --> type of the current Image
+#
+#             global Variables
+#             --> TMP_DIR
+#             --> IMAGE
+#
+# return:     -
+#
+# description:
+# This function copies, the Image, that has been referenced in the last
+# FS-Header found FS-Header, in the beginning of IMAGE into its own File.
+# Afterwards it will be deleted from IMAGE.
+#
+###############################################################################
+function seperateFSImage
+{
+	size=$1"_size"
+	dd if=$TMP_DIR/$IMAGE of=$TMP_DIR/$1 bs=1 count=${!size} status=none
+	dd if=$TMP_DIR/$IMAGE of=$TMP_DIR/$IMAGE"_temp" \
+		bs=1 skip=${!size} status=none
+	cp $TMP_DIR/$IMAGE"_temp" $TMP_DIR/$IMAGE;
+	rm $TMP_DIR/$IMAGE"_temp"
+}
+
+###############################################################################
+# function: getNextFSHeaderAndImage()
+#
+# parameters: $1 --> type of the current Image
+#
+# return:     -
+#
+# description:
+# This function is used to retrieve the next FS-Header and its coresponding
+# Image. It uses several funtions to save both the header and the Image in
+# different Files for later use. It is intended for Images and Header that are
+# meant to be signed.
+#
+###############################################################################
+function getNextFSHeaderAndImage
+{
+	fsImageGetSizeAndOffset $1
+	separateFSHeader $1
+	seperateFSImage $1
+	PrepearEnvironment $1
+}
+
+###############################################################################
+# function: FSImageAppendIVT()
+#
+# parameters: $1 --> type of the current Image
+#
+#             global Variables
+#             --> TMP_DIR
+#
+# return:     -
+#
+# description:
+# This function is used to add IVT and Bootdata structure between the Header and
+# the Image. Both must exist in two different files beforehand. Afterwards a
+# single file with no extension to the type name will be in the temp directoy
+# including thenew structures
+#
+###############################################################################
+function FSImageAppendIVT
+{
+	createBootDataHeader
+	createIVTHeader $header_size
+	cat $TMP_DIR/"$1"_header $TMP_DIR/"$1" >> $TMP_DIR/"$1"_temp
+	cp $TMP_DIR/"$1"_temp $TMP_DIR/"$1"
+	rm $TMP_DIR/"$1"_temp
+}
+
+###############################################################################
+# function: getFSImageSignedSizeAndDiff()
+#
+# parameters: $1 --> type of the current Image
+#
+# return:     global variables:
+#             --> length_no_header
+#             --> signed_image_size (runFakeCST)
+#             --> $1_size_diff
+#
+# description:
+# This function is used to get several sizes, used by other functions
+#
+# NOTE: runFakeCST() call is necessary because the header fields need this
+# information BEFORE the actual signing process
+#
+###############################################################################
+function getFSImageSignedSizeAndDiff
+{
+	local size="$1"_size
+	runFakeCST
+	length_no_header=$(printf "%08X" \
+		$((0x$signed_image_length - $header_size)))
+	printf -v "$1_size_diff" '%d' $((0x$length_no_header - ${!size}))
+}
+
+###############################################################################
+# function: setFSImageAndIVTLengthFields()
+#
+# parameters: $1 --> current Image
+#
+#             global variables:
+#             --> TMP_DIR
+#
+# return:     -
+#
+# description:
+# This function sets the length field in both boot the IVT and the FS-Header of the current Image.
+#
+###############################################################################
+function setFSImageAndIVTLengthFields
+{
+	local size="$1"_size
+	adjustField $TMP_DIR/"$1" $(($header_size + $boot_data_length)) \
+		$(printf "%08X" ${!size})
+	adjustField $TMP_DIR/"$1" $fs_image_size_low  $length_no_header
+}
+
+###############################################################################
+# function: signFSImage()
+#
+# parameters: $1 --> current Image
+#
+#             global variables:
+#             --> TMP_DIR
+#             --> BOOT_IN_CSF
+#
+# return:     -
+#
+# description:
+# This function calls everything needed to sign the next Image in IMAGE and
+# saves it to TARGET_NAME
+#
+###############################################################################
+function signFSImage
+{
+	getNextFSHeaderAndImage $1
+	load_address=$2
+	FSImageAppendIVT $1
+	getFSImageSignedSizeAndDiff $1
+	setFSImageAndIVTLengthFields $1
+
+	cp $TMP_DIR/$BOOT_IN_CSF $TMP_DIR/boot_in_org
+	createSignedImage
+	cp $TMP_DIR/boot_in_org $TMP_DIR/$BOOT_IN_CSF
+
+	restoreEnvironment
+}
+
+###############################################################################
+# function: signSPL()
+#
+# parameters: global variables:
+#             --> TMP_DIR
+#             --> TARGET_NAME
+#
+# return:     -
+#
+# description:
+# This function signs the SPL. It is necessary, to be signed independently,
+# because the SPL needs to be treated differently, because of ROM-Bootloader
+# prequisites.
+#
+###############################################################################
+function signSPL
+{
+	fsImageGetSizeAndOffset spl
+	skipFSHeader spl
+	seperateFSImage spl
+	PrepearEnvironment spl
+
+	runFakeCST
+	spl_size_diff=$((0x$signed_image_length - $spl_size))
+	adjustField $TMP_DIR/spl 36 $signed_image_length
+	adjustField $TMP_DIR/spl 24 $(printf "%08x" \
+		$(($(stat --printf="%s" $TMP_DIR/spl) + 0x$spl_addr)))
+	cp $TMP_DIR/$BOOT_IN_CSF $TMP_DIR/boot_in_org
+	createSignedImage
+	cp $TMP_DIR/boot_in_org $TMP_DIR/$BOOT_IN_CSF
+	restoreEnvironment
+
+	nboot_size=$(($nboot_size + $spl_size_diff))
+	adjustField $TMP_DIR/$TARGET_NAME \
+		$(($spl_offset + $fs_image_size_low)) $signed_image_length
+}
+
+###############################################################################
+# function: setFSImageLengths()
+#
+# parameters: $1   --> size to add
+#             $2-n --> array of image types
+#
+# return:     -
+#
+# description:
+# Takes a size and increments every dynamically created size variable of the
+# FS-Headers. The names of the Image types are input as Argument 2 to n.
+#
+###############################################################################
+function setFSImageLengths
+{
+	new_diff_size=$1
+	shift 1
+	while [ $# -ne 0 ]; do
+		old_size=$1_size
+		printf -v "$old_size" '%d' $((${!old_size} + $new_diff_size))
+		shift 1
+	done
+}
+
+###############################################################################
+# function: applyFSImageLengthVariable()
+#
+# parameters: global variables
+#             --> TMP_DIR
+#             --> TARGET_NAME
+#
+# return:     -
+#
+# description:
+# Takes a size and increments every dynamically created size variable of the
+# FS-Headers. The names of the Image types are input as Argument 2 to n.
+#
+###############################################################################
+function applyFSImageLengthVariable
+{
+	adjustField $TMP_DIR/$TARGET_NAME \
+		$((dram_settings_offset + $fs_image_size_low)) \
+		$(printf "%08X" $dram_settings_size)
+	adjustField $TMP_DIR/$TARGET_NAME \
+		$(($board_configs_offset + $fs_image_size_low)) \
+		$(printf "%08X" $board_configs_size)
+	adjustField $TMP_DIR/$TARGET_NAME \
+		$(($firmware_offset + $fs_image_size_low)) \
+		$(printf "%08X" $firmware_size)
+	adjustField $TMP_DIR/$TARGET_NAME $fs_image_size_low \
+		$(printf "%08X" $nboot_size)
+}
+
+###############################################################################
+# function: FSImagecreateOuterSignature()
+#
+# parameters: global variables
+#             --> TMP_DIR
+#             --> TARGET_NAME
+#             --> BOOT_IN_CSF
+#
+# return:     -
+#
+# description:
+# Creates an CSF for the whole N-Boot. This will be checked for validity, when
+# the N-Boot is saved with "fsimage save"
+#
+###############################################################################
+function FSImagecreateOuterSignature
+{
+	load_address=$download_addr
+	cp $TMP_DIR/$TARGET_NAME $TMP_DIR/raw
+	PrepearEnvironment raw
+
+	createBootDataHeader
+	createIVTHeader
+
+	cp $TMP_DIR/$BOOT_IN_CSF $TMP_DIR/boot_in_org
+	createSignedImage
+	cp $TMP_DIR/boot_in_org $TMP_DIR/$BOOT_IN_CSF
+
+	restoreEnvironment
+	cp $TMP_DIR/raw_signed bin/$TARGET_NAME
+}
+
+###############################################################################
+# function: signiMX8NBoot()
+#
+# parameters: global variables
+#             --> TMP_DIR
+#             --> TARGET_NAME
+#             --> IMAGE
+#
+# return:     -
+#
+# description:
+# this function will copy every part of the Container defined in $IMAGE
+# step by step to $TARGET_IMAGE, while signing the necessary parts.
+# Variables will be created dynamically to keep track of new offsets for
+# FS-Headers that have not been signed. These Headers are used to
+# categorieze their sub-Images like "DRAM type" or "Board-Configs". If an
+# Image will be signed, its FS-Header will be signed to, their Size will
+# be adjusted during the signing process directly.
+#
+###############################################################################
+function signiMX8NBoot
+{
+	saveEnvironment
+	while [ $(stat --printf=%s $TMP_DIR/$IMAGE) -ne 0 ]; do
+		header_name=$(hexdump -s 16 -n 16 -e'16/1 "%_c"' $TMP_DIR/$IMAGE)
+		case $header_name in
+			"NBOOT"*)
+				printf "${LIGHT_GREEN}Found NBoot${NORMAL}\n"
+				fsImageGetSizeAndOffset nboot
+				skipFSHeader nboot
+				;;
+			"SPL"*)
+				printf "${LIGHT_GREEN}-> Found SPL${NORMAL}\n"
+				signSPL
+				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/spl_signed \
+					>> $TMP_DIR/$TARGET_NAME 2>/dev/null
+				cp $TMP_DIR/spl_signed bin/
+				;;
+			"BOARD-CONFIGS"*)
+				printf "${LIGHT_GREEN}-> Found Board Configs: ${NORMAL}"
+				fsImageGetSizeAndOffset board_configs
+				skipFSHeader board_configs
+				;;
+			"BOARD-CFG"*)
+				printf "${LIGHT_GREEN}#${NORMAL}"
+				signFSImage board_config 00920000
+				setFSImageLengths $board_config_size_diff nboot board_configs
+				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/board_config_signed \
+					>> $TMP_DIR/$TARGET_NAME 2>/dev/null
+				;;
+			"FIRMWARE"*)
+				printf "\n${LIGHT_GREEN}-> Found Firmware${NORMAL}\n"
+				fsImageGetSizeAndOffset firmware
+				skipFSHeader firmware
+				;;
+			"DRAM-SETTINGS"*)
+				printf "${LIGHT_GREEN}--> Found DRAM settings: ${NORMAL}"
+				fsImageGetSizeAndOffset dram_settings
+				skipFSHeader dram_settings
+				;;
+			"DRAM-FW"*)
+				printf "${LIGHT_GREEN}#${NORMAL}"
+				signFSImage dram_firmware 00920000
+				setFSImageLengths $dram_firmware_size_diff nboot firmware \
+					dram_settings dram_type
+				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/dram_firmware_signed \
+					>> $TMP_DIR/$TARGET_NAME 2>/dev/null
+				;;
+			"DRAM-TIMING"*)
+				printf "${LIGHT_GREEN}#${NORMAL}"
+				signFSImage dram_timing 00920000
+				setFSImageLengths $dram_timing_size_diff nboot firmware \
+					dram_settings dram_type
+				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/dram_timing_signed \
+					>> $TMP_DIR/$TARGET_NAME 2>/dev/null
+				adjustField $TMP_DIR/$TARGET_NAME $((dram_type_offset + 4)) \
+					$(printf "%08X" $dram_type_size)
+				;;
+			"DRAM-TYPE"*)
+				printf "${LIGHT_GREEN}#${NORMAL}"
+				fsImageGetSizeAndOffset dram_type
+				skipFSHeader dram_type
+				;;
+			"ATF"*)
+				printf "\n${LIGHT_GREEN}--> Found ATF${NORMAL}\n"
+				signFSImage atf 00920000
+				setFSImageLengths $atf_size_diff nboot firmware
+				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/atf_signed \
+					>> $TMP_DIR/$TARGET_NAME 2>/dev/null
+				;;
+			*)
+				printf "${LIGHT_GREEN}Found $header_name${NORMAL}\n"
+				fsImageGetSizeAndOffset unknown
+				skipFSHeader unknown
+				seperateFSImage unknown
+				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/unknown \
+					>> $TMP_DIR/$TARGET_NAME 2>/dev/null
+				;;
+		esac
+	done
+	applyFSImageLengthVariable
+	cp $TMP_DIR/$TARGET_NAME bin/$TARGET_NAME"_uuu"
+	FSImagecreateOuterSignature
+	printf "${LIGHT_GREEN}Signed image (%s) successfully generated. ${NORMAL}\b\n" "$TARGET_NAME"
+	rm -r $TMP_DIR
+}
 
 # main function
 handleParameters "$@"
@@ -646,6 +1272,10 @@ setCertNumberSigning
 getImageToBeSigned
 getImageType
 
+if [ "${cpu_arch}" == "8mm" -a $image_name == "nboot_8mm" ]; then
+	signiMX8NBoot
+	exit 0
+fi
 if [[ "$image_name" != *"nboot"* ]]; then
 	createBootDataHeader
 	createIVTHeader
@@ -654,10 +1284,14 @@ fi
 createSignedImage
 if [ "$?" == "0" ]; then
 	printf "${LIGHT_GREEN}Signed image (%s) successfully generated.
-			${NORMAL}\b\n" "$TARGET_NAME"
+	${NORMAL}\b\n" "$TARGET_NAME"
 	exit 0
 else
 	printf "\n${LIGHT_RED}Error, aborting...${NORMAL}\b\n"
 	exit 1
 fi
+printf "${LIGHT_GREEN}Signed image (%s) successfully generated. ${NORMAL}\b\n" "$TARGET_NAME"
+rm -r $TMP_DIR
+
+	exit 0
 
