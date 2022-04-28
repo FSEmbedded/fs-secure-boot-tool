@@ -80,7 +80,7 @@ function setup_variables()
 	boot_data_length=36
 	boot_data_plugin_flag=40
 	#special addresses
-	spl_addr=7E0400
+	spl_addr=7E0FC0
 	download_addr=40480000
 }
 
@@ -317,7 +317,6 @@ function createSignedImage()
 	# setup signing_address
 	let signing_address="$load_address_hex + $signing_offset"
 	signing_address=0x`printf "%x" "$signing_address"`
-
 	sed -e "s/###ADDR###/$signing_address/" \
 		-e "s/###OFFSET###/$signing_offset/" -e "s/###SIZE###/$signing_size/" \
 		-e "s|###BOOT###|$TMP_DIR/$IMAGE|" -e "s/###ENGINE###/$engine/" \
@@ -1053,21 +1052,31 @@ function signFSImage
 ###############################################################################
 function signSPL
 {
+	#get everything spl related set up
 	fsImageGetSizeAndOffset spl
 	skipFSHeader spl
 	seperateFSImage spl
 	PrepearEnvironment spl
 
+	#remove padding
+	csf_loc=$(hexdump -s $ivt_csf -n $field_size -e '1/4 "%08x"' $TMP_DIR/spl)
+	self_loc=$(hexdump -s $ivt_self -n $field_size -e '1/4 "%08x"' $TMP_DIR/spl)
+	image_size_no_padding=$((0x$csf_loc - 0x$self_loc))
+	dd if=$TMP_DIR/spl of=$TMP_DIR/spl_t bs=1 count=$image_size_no_padding status=none #rückwärtskompatibel??
+	mv $TMP_DIR/spl_t $TMP_DIR/spl
+
+	#adjust sizes to the theoretical signing size
 	runFakeCST
-	spl_size_diff=$((0x$signed_image_length - $spl_size))
-	adjustField $TMP_DIR/spl 36 $signed_image_length
-	adjustField $TMP_DIR/spl 24 $(printf "%08x" \
-		$(($(stat --printf="%s" $TMP_DIR/spl) + 0x$spl_addr)))
+	spl_size_diff=$((0x$signed_image_length - $image_size_no_padding))
+	adjustField $TMP_DIR/spl $boot_data_length $(printf "%08x" $((0x$signed_image_length + 0x400))) #TODO 0x400 als variable oder so
+
+	#signing Process TODO das in ne imx8 funktion zusammenfassen
 	cp $TMP_DIR/$BOOT_IN_CSF $TMP_DIR/boot_in_org
 	createSignedImage
 	cp $TMP_DIR/boot_in_org $TMP_DIR/$BOOT_IN_CSF
-	restoreEnvironment
 
+	#clean up and adjust fs header size
+	restoreEnvironment
 	nboot_size=$(($nboot_size + $spl_size_diff))
 	adjustField $TMP_DIR/$TARGET_NAME \
 		$(($spl_offset + $fs_image_size_low)) $signed_image_length
