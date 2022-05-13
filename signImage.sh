@@ -79,9 +79,6 @@ function setup_variables()
 	boot_data_start=32
 	boot_data_length=36
 	boot_data_plugin_flag=40
-	#special addresses
-	spl_addr=7E0FC0
-	download_addr=40480000
 }
 
 
@@ -191,7 +188,10 @@ function getImageType()
 	local MAGIC_NUMBER_DEVTREE_FIT_IMAGE=`hexdump -n 4 -s 0x0 -e \
 	'"%x\n"' "$TMP_DIR/$IMAGE"`
 	local MAGIC_NUMBER_FS=`hexdump -n 4 -e '"%x"' "$TMP_DIR/$IMAGE"`
-	local MAGIC_NUMBER_N8=`hexdump -n 4 -s 16 -e '"%x"' "$TMP_DIR/$IMAGE"`
+	local MAGIC_NUMBER_FS_IMAGE_TYPE=`hexdump -n 4 -s 16 -e \
+	'"%x"' "$TMP_DIR/$IMAGE"`
+	local MAGIC_NUMBER_AARCH64_ZIMAGE=`hexdump -n 4 -s 56 -e \
+	'"%x"' "$TMP_DIR/$IMAGE"`
 
 	if [ "$MAGIC_NUMBER_N" == "402000d1" ]; then
 		load_address=907000
@@ -217,6 +217,9 @@ function getImageType()
 		# change endianess and set global variables
 		load_address=`echo ${kernel_load_addr:6:2}${kernel_load_addr:4:2}\
 ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
+		if [ "$cpu_arch" == "8mm" ]; then
+			load_address=43800000
+		fi
 		image_name="uImage_${cpu_arch}"
 		TARGET_NAME="${IMAGE}_signed"
 		printf "Legacy Image detected!\n"
@@ -234,6 +237,8 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 		# set global variables
 		if [ "$cpu_arch" == "sdq" ]; then
 			load_address=12000000
+		elif [ "$cpu_arch" == "8mm" ]; then
+			load_address=43000000
 		else
 			load_address=82000000
 		fi
@@ -252,10 +257,31 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 		printf "E-Boot/M4 image not yet supported! Aborting....\n"
 		rm -r $TMP_DIR
 		exit 1
-	elif [ "$MAGIC_NUMBER_FS" == "584c5346" -a "$MAGIC_NUMBER_N8" == "4f4f424e" ]; then
+	elif [ "$MAGIC_NUMBER_FS" == "584c5346" -a \
+           "$MAGIC_NUMBER_FS_IMAGE_TYPE" == "4f4f424e"   ]; then
 		image_name="nboot_${cpu_arch}"
 		TARGET_NAME="${image_name}_signed.fs"
-		load_address=$spl_addr
+		load_address=7E0FC0
+		download_addr=40480000
+		test_addr=00920000
+	elif [ "$MAGIC_NUMBER_FS" == "584c5346" -a \
+           "$MAGIC_NUMBER_FS_IMAGE_TYPE" == "52414f42"   ]; then
+		image_name="nboot_${cpu_arch}"
+		TARGET_NAME="${image_name}_signed.fs"
+		load_address=7E0FC0
+		download_addr=40480000
+		test_addr=00920000
+	elif [ "$MAGIC_NUMBER_FS" == "584c5346" -a \
+           "$MAGIC_NUMBER_FS_IMAGE_TYPE" == "4f422d55" ]; then
+		printf "i.MX8M uboot detected\n"
+		image_name=uboot.fs
+		TARGET_NAME="${image_name}_signed"
+		load_address=401fffc0
+	elif [ "$MAGIC_NUMBER_AARCH64_ZIMAGE" == "644d5241" ]; then
+		printf "Kernel Image detected\n"
+		image_name="Image_${cpu_arch}"
+		TARGET_NAME="${IMAGE}_signed"
+		load_address=40480000
 	else
 		printf "Image type not supported! Aborting....\n"
 		rm -r $TMP_DIR
@@ -266,7 +292,6 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 		load_address=$custom_load_address
 	fi
 }
-
 
 ###############################################################################
 # function: createSignedImage()
@@ -289,6 +314,12 @@ function createSignedImage()
 	local signing_size="$image_size"
 	local signing_offset=0x0
 	image_size=0x`printf "%08x" "$image_size"`
+
+	if [ -z $1 ]; then
+		exit_early=0
+	else
+		exit_early=$1
+	fi
 
 	if [[ "$image_name" == *"nboot"* ]]; then
 		# signing begins at offset 0x14
@@ -365,8 +396,8 @@ function createSignedImage()
 	# create bin folder if not exists
 	mkdir -p bin
 	# delete temp files if possible
-	if [ $cpu_arch != "8mm" ]; then
-		\cp $TMP_DIR/$TARGET_NAME bin
+	if [[ $exit_early == 0 ]]; then
+		cp $TMP_DIR/$TARGET_NAME bin
 		rm -r $TMP_DIR
 	fi
 
@@ -402,12 +433,23 @@ function createIVTHeader()
 	else
 		offset=$1
 	fi
+
 	let boot_data_absolute_addr="0x$load_address + 0x20 + $offset"
-	let entry_point_addr="0x$load_address + 0x40 + $offset"
 	let self_addr="0x$load_address + $offset"
+
+	if [ -z $2 ]; then
+		let entry_point_addr="0x$load_address + 0x40 + $offset"
+		image_size=`printf "%d "$(($image_size-32))`
+	else
+		let entry_point_addr="0x$load_address"
+		image_size=`printf "%d "$(($image_size+32))`
+	fi
+
+	image_size=`printf "%08x" $image_size`
 	boot_data_absolute_addr=$(printf "%08x" $boot_data_absolute_addr)
 	entry_point_addr=$(printf "%08x" $entry_point_addr)
 	self_addr=$(printf "%08x" $self_addr)
+	csf_absolute_addr=`printf "%08x" $((0x$image_size+0x$entry_point_addr))`
 
 	### -> HEADER <- ###
 	# change big endians to little endians
@@ -475,9 +517,7 @@ ${self_addr:0:2}`
 	# image size. Boot_data_header has a fix size 0x20 => 32 (decimal).
 	# For most i.MX8 N-Boot Images, the length is considered as the original
 	# Image length.
-	image_size=`printf "%d "$(($image_size-32))`
-	image_size=`printf "%08x" $image_size`
-	csf_absolute_addr=`printf "%08x" $((0x$image_size+0x$entry_point_addr))`
+
 	# change big endians to little endians
 	temp=`echo ${csf_absolute_addr:6:2}${csf_absolute_addr:4:2}\
 ${csf_absolute_addr:2:2}${csf_absolute_addr:0:2}`
@@ -540,7 +580,6 @@ ${load_address:2:2}${load_address:0:2}`
 		# insert \x every Byte so it can interpreted as a binary file
 		load_addr_bin=`echo -n -e $load_addr_bin | sed -e 's/.\{2\}/&\\\x/g'`
 	fi
-
 	# round image_size up to the next 0x10 boundary (left-adjusted)
 	image_size=$((($image_size+15)/16))
 	image_size=$(($image_size * 16))
@@ -993,7 +1032,8 @@ function getFSImageSignedSizeAndDiff
 # return:     -
 #
 # description:
-# This function sets the length field in both boot the IVT and the FS-Header of the current Image.
+# This function sets the length field in both boot the IVT and the FS-Header
+# of the current Image.
 #
 ###############################################################################
 function setFSImageAndIVTLengthFields
@@ -1029,7 +1069,7 @@ function signFSImage
 	setFSImageAndIVTLengthFields $1
 
 	cp $TMP_DIR/$BOOT_IN_CSF $TMP_DIR/boot_in_org
-	createSignedImage
+	createSignedImage exit_early
 	cp $TMP_DIR/boot_in_org $TMP_DIR/$BOOT_IN_CSF
 
 	restoreEnvironment
@@ -1058,28 +1098,50 @@ function signSPL
 	seperateFSImage spl
 	PrepearEnvironment spl
 
-	#remove padding
-	csf_loc=$(hexdump -s $ivt_csf -n $field_size -e '1/4 "%08x"' $TMP_DIR/spl)
-	self_loc=$(hexdump -s $ivt_self -n $field_size -e '1/4 "%08x"' $TMP_DIR/spl)
-	image_size_no_padding=$((0x$csf_loc - 0x$self_loc))
-	dd if=$TMP_DIR/spl of=$TMP_DIR/spl_t bs=1 count=$image_size_no_padding status=none #rückwärtskompatibel??
-	mv $TMP_DIR/spl_t $TMP_DIR/spl
+	current_self=$(hexdump $TMP_DIR/spl -v -s 0x14 -n 4 -e'1/8 "%X"')
+	if [[ $current_self == "7E0400" ]]; then
+		load_address=7E0400
+		runFakeCST
+		spl_size_diff=$((0x$signed_image_length - $spl_size))
+		adjustField $TMP_DIR/spl 36 $signed_image_length
+		adjustField $TMP_DIR/spl 24 $(printf "%08x" \
+			$(($(stat --printf="%s" $TMP_DIR/spl) + 0x$load_address)))
+		cp $TMP_DIR/$BOOT_IN_CSF $TMP_DIR/boot_in_org
+		createSignedImage exit_early
+		cp $TMP_DIR/boot_in_org $TMP_DIR/$BOOT_IN_CSF
+		restoreEnvironment
 
-	#adjust sizes to the theoretical signing size
-	runFakeCST
-	spl_size_diff=$((0x$signed_image_length - $image_size_no_padding))
-	adjustField $TMP_DIR/spl $boot_data_length $(printf "%08x" $((0x$signed_image_length + 0x400))) #TODO 0x400 als variable oder so
+		nboot_size=$(($nboot_size + $spl_size_diff))
+		adjustField $TMP_DIR/$TARGET_NAME \
+			$(($spl_offset + $fs_image_size_low)) $signed_image_length
+	else
+		#remove padding
+		csf_loc=$(hexdump -s $ivt_csf -n $field_size -e \
+			'1/4 "%08x"' $TMP_DIR/spl)
+		self_loc=$(hexdump -s $ivt_self -n $field_size -e \
+			'1/4 "%08x"' $TMP_DIR/spl)
+		image_size_no_padding=$((0x$csf_loc - 0x$self_loc))
+		dd if=$TMP_DIR/spl of=$TMP_DIR/spl_t \
+			bs=1 count=$image_size_no_padding status=none
+		mv $TMP_DIR/spl_t $TMP_DIR/spl
 
-	#signing Process TODO das in ne imx8 funktion zusammenfassen
-	cp $TMP_DIR/$BOOT_IN_CSF $TMP_DIR/boot_in_org
-	createSignedImage
-	cp $TMP_DIR/boot_in_org $TMP_DIR/$BOOT_IN_CSF
+		#adjust sizes to the theoretical signing size
+		runFakeCST
+		spl_size_diff=$((0x$signed_image_length - $image_size_no_padding))
+		adjustField $TMP_DIR/spl $boot_data_length \
+			$(printf "%08x" $((0x$signed_image_length + 0x400)))
 
-	#clean up and adjust fs header size
-	restoreEnvironment
-	nboot_size=$(($nboot_size + $spl_size_diff))
-	adjustField $TMP_DIR/$TARGET_NAME \
-		$(($spl_offset + $fs_image_size_low)) $signed_image_length
+		cp $TMP_DIR/$BOOT_IN_CSF $TMP_DIR/boot_in_org
+		createSignedImage exit_early
+		cp $TMP_DIR/boot_in_org $TMP_DIR/$BOOT_IN_CSF
+
+		#clean up and adjust fs header size
+		restoreEnvironment
+
+		nboot_size=$(($nboot_size + $((0x$signed_image_length - $spl_size))))
+		adjustField $TMP_DIR/$TARGET_NAME \
+			$(($spl_offset + $fs_image_size_low)) $signed_image_length
+	fi
 }
 
 ###############################################################################
@@ -1131,8 +1193,42 @@ function applyFSImageLengthVariable
 	adjustField $TMP_DIR/$TARGET_NAME \
 		$(($firmware_offset + $fs_image_size_low)) \
 		$(printf "%08X" $firmware_size)
-	adjustField $TMP_DIR/$TARGET_NAME $fs_image_size_low \
+	adjustField $TMP_DIR/$TARGET_NAME \
+		$(($nboot_offset + $fs_image_size_low)) \
 		$(printf "%08X" $nboot_size)
+
+	if [[ ! -z $board_id_offset ]]; then
+		adjustField $TMP_DIR/$TARGET_NAME \
+			$(($board_id_offset + $fs_image_size_low)) \
+			$(printf "%08X" $(($nboot_size + $header_size)))
+	fi
+}
+
+###############################################################################
+# function: createNBootIVT8M()
+#
+# parameters: global variables
+#             --> TMP_DIR
+#
+# return:     -
+#
+# description:
+# creates an IVT that tails the nboot. It will be used to check the nboots
+# validity when saving with 'fsimage save'.
+#
+###############################################################################
+function createNBootIVT8M
+{
+	full_size=$(stat --printf=%s $TMP_DIR/unsigned)
+	createBootDataHeader
+	createIVTHeader $(($(stat --printf=%s $TMP_DIR/unsigned) - 0x20)) "tail"
+	dd if=$TMP_DIR/unsigned of=$TMP_DIR/ivt count=$header_size bs=1 status=none
+	dd if=$TMP_DIR/unsigned of=$TMP_DIR/unsigned2 \
+		skip=$header_size bs=1 status=none
+	mv $TMP_DIR/unsigned2 $TMP_DIR/unsigned
+
+	cat $TMP_DIR/unsigned $TMP_DIR/ivt > $TMP_DIR/unsigned_ivt
+	mv $TMP_DIR/unsigned_ivt $TMP_DIR/unsigned
 }
 
 ###############################################################################
@@ -1153,18 +1249,17 @@ function applyFSImageLengthVariable
 function FSImagecreateOuterSignature
 {
 	load_address=$download_addr
-	cp $TMP_DIR/$TARGET_NAME $TMP_DIR/raw
-	PrepearEnvironment raw
+	cp $TMP_DIR/$TARGET_NAME $TMP_DIR/unsigned
+	PrepearEnvironment unsigned
 
-	createBootDataHeader
-	createIVTHeader
+	createNBootIVT8M
 
 	cp $TMP_DIR/$BOOT_IN_CSF $TMP_DIR/boot_in_org
-	createSignedImage
+	createSignedImage exit_early
 	cp $TMP_DIR/boot_in_org $TMP_DIR/$BOOT_IN_CSF
 
 	restoreEnvironment
-	cp $TMP_DIR/raw_signed bin/$TARGET_NAME
+	cp $TMP_DIR/unsigned_signed bin/$TARGET_NAME
 }
 
 ###############################################################################
@@ -1193,6 +1288,11 @@ function signiMX8NBoot
 	while [ $(stat --printf=%s $TMP_DIR/$IMAGE) -ne 0 ]; do
 		header_name=$(hexdump -s 16 -n 16 -e'16/1 "%_c"' $TMP_DIR/$IMAGE)
 		case $header_name in
+			"BOARD-ID"*)
+				printf "${LIGHT_GREEN}Found board_id${NORMAL}\n"
+				fsImageGetSizeAndOffset board_id
+				skipFSHeader board_id
+				;;
 			"NBOOT"*)
 				printf "${LIGHT_GREEN}Found NBoot${NORMAL}\n"
 				fsImageGetSizeAndOffset nboot
@@ -1212,7 +1312,7 @@ function signiMX8NBoot
 				;;
 			"BOARD-CFG"*)
 				printf "${LIGHT_GREEN}#${NORMAL}"
-				signFSImage board_config 00920000
+				signFSImage board_config $test_addr
 				setFSImageLengths $board_config_size_diff nboot board_configs
 				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/board_config_signed \
 					>> $TMP_DIR/$TARGET_NAME 2>/dev/null
@@ -1229,7 +1329,7 @@ function signiMX8NBoot
 				;;
 			"DRAM-FW"*)
 				printf "${LIGHT_GREEN}#${NORMAL}"
-				signFSImage dram_firmware 00920000
+				signFSImage dram_firmware $test_addr
 				setFSImageLengths $dram_firmware_size_diff nboot firmware \
 					dram_settings dram_type
 				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/dram_firmware_signed \
@@ -1237,7 +1337,7 @@ function signiMX8NBoot
 				;;
 			"DRAM-TIMING"*)
 				printf "${LIGHT_GREEN}#${NORMAL}"
-				signFSImage dram_timing 00920000
+				signFSImage dram_timing $test_addr
 				setFSImageLengths $dram_timing_size_diff nboot firmware \
 					dram_settings dram_type
 				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/dram_timing_signed \
@@ -1252,7 +1352,7 @@ function signiMX8NBoot
 				;;
 			"ATF"*)
 				printf "\n${LIGHT_GREEN}--> Found ATF${NORMAL}\n"
-				signFSImage atf 00920000
+				signFSImage atf $test_addr
 				setFSImageLengths $atf_size_diff nboot firmware
 				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/atf_signed \
 					>> $TMP_DIR/$TARGET_NAME 2>/dev/null
@@ -1268,8 +1368,65 @@ function signiMX8NBoot
 		esac
 	done
 	applyFSImageLengthVariable
-	cp $TMP_DIR/$TARGET_NAME bin/$TARGET_NAME"_uuu"
 	FSImagecreateOuterSignature
+	printf "${LIGHT_GREEN}Signed image (%s) successfully generated. \
+            ${NORMAL}\b\n" "$TARGET_NAME"
+	rm -r $TMP_DIR
+}
+
+###############################################################################
+# function: signiMX8NBoot()
+#
+# parameters: global variables
+#             --> TMP_DIR
+#             --> TARGET_NAME
+#             --> IMAGE
+#
+# return:     -
+#
+# description:
+# signs imx8 u-boot images, without the FS Header, since it will never be saved
+# to the system.
+#
+# TODO: the name needs to be changed from uboot to u-boot because older
+# functions of the i.MX6 implementation assume it to be an i.MX6 uboot
+# otherwise and make the signing process fail. Those functions should be made
+# more flexible in the futer to be lmore flexible.
+#
+###############################################################################
+function signImx8Uboot
+{
+	image_name_back=$image_name
+	image_name=u-boot
+
+	dd if="${TMP_DIR}/${IMAGE}" of="${TMP_DIR}/${IMAGE}_header" \
+		bs=1 count=$header_size status=none
+	dd if="${TMP_DIR}/${IMAGE}" of="${TMP_DIR}/${IMAGE}_image" \
+		bs=1 skip=$header_size status=none
+
+	cp ${TMP_DIR}/${IMAGE}_image ${TMP_DIR}/${IMAGE}
+
+	createBootDataHeader
+	createIVTHeader
+
+	# exit early weil der FS-Header wieder angefügt werden muss bevor das image abgelegt werden kann.
+	createSignedImage exit_early
+
+	# größe ermitteln
+	uboot_signed_size=$(printf "%08x" $(stat --printf=%s $TMP_DIR/$TARGET_NAME))
+
+	# zusammenführen
+	cat "${TMP_DIR}/${IMAGE}_header" $TMP_DIR/$TARGET_NAME > $TMP_DIR/temp
+	cp $TMP_DIR/temp $TMP_DIR/$TARGET_NAME
+
+	# größe anpassen
+	adjustField $TMP_DIR/$TARGET_NAME $fs_image_size_low $uboot_signed_size
+
+	cp $TMP_DIR/$TARGET_NAME bin/$TARGET_NAME
+
+
+	image_name=$image_name_back
+
 	printf "${LIGHT_GREEN}Signed image (%s) successfully generated. ${NORMAL}\b\n" "$TARGET_NAME"
 	rm -r $TMP_DIR
 }
@@ -1283,6 +1440,10 @@ getImageType
 
 if [ "${cpu_arch}" == "8mm" -a $image_name == "nboot_8mm" ]; then
 	signiMX8NBoot
+	exit 0
+fi
+if [ "${cpu_arch}" == "8mm" -a $image_name == "uboot.fs" ]; then
+	signImx8Uboot
 	exit 0
 fi
 if [[ "$image_name" != *"nboot"* ]]; then
