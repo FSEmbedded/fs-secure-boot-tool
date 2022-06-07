@@ -289,7 +289,11 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 	fi
 
 	if [ -n "$custom_load_address" ]; then
-		load_address=$custom_load_address
+		if [[ $is_imx8m_nboot -eq 1 ]]; then
+			download_addr=$custom_load_address
+		else
+			load_address=$custom_load_address
+		fi
 	fi
 }
 
@@ -368,7 +372,7 @@ function createSignedImage()
 		return 1
 	fi
 
-	if [ -n "$OUTPUT_NAME" ]; then
+	if [[ -n "$OUTPUT_NAME" ]] && [[ $is_imx8m_nboot -ne 1 ]]; then
 		TARGET_NAME="$OUTPUT_NAME"
 	fi
 
@@ -1259,6 +1263,9 @@ function FSImagecreateOuterSignature
 	cp $TMP_DIR/boot_in_org $TMP_DIR/$BOOT_IN_CSF
 
 	restoreEnvironment
+	if [[ -n $OUTPUT_NAME ]]; then
+		TARGET_NAME=$OUTPUT_NAME
+	fi
 	cp $TMP_DIR/unsigned_signed bin/$TARGET_NAME
 }
 
@@ -1422,8 +1429,11 @@ function signImx8Uboot
 	# größe anpassen
 	adjustField $TMP_DIR/$TARGET_NAME $fs_image_size_low $uboot_signed_size
 
-	cp $TMP_DIR/$TARGET_NAME bin/$TARGET_NAME
+	cp $TMP_DIR/$TARGET_NAME bin/$OUTPUT_NAME
 
+	if [[ -n $OUTPUT_NAME ]]; then
+		TARGET_NAME=$OUTPUT_NAME
+	fi
 
 	image_name=$image_name_back
 
