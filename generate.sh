@@ -80,7 +80,7 @@ elif [ "$settings" != "d" ]; then
 	exit 1
 fi
 
-select cpu in "FSIMX6SDQ" "FSIMX6SX" "FSIMX6UL" "FSIMX6ULL" "FSVYBRID" "FSIMX8MM";
+select cpu in "FSIMX6SDQ" "FSIMX6SX" "FSIMX6UL" "FSIMX6ULL" "FSVYBRID" "FSIMX8MM" "FSIMX8MN";
 do
     case "$cpu" in
 	FSIMX6SDQ )
@@ -105,6 +105,10 @@ do
 	    ;;
 	FSIMX8MM )
 	    cpu=6
+	    break
+	    ;;
+	FSIMX8MN )
+	    cpu=7
 	    break
 	    ;;
     esac

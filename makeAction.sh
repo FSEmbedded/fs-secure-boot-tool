@@ -164,6 +164,9 @@ if [ "$action" == "sign" ] || [ "$action" == "encrypt" ]; then
 		6 )
 		cpu_arch=8mm
 		;;
+		7 )
+		cpu_arch=8mn
+		;;
 		* )
 		printf "\nUnknown cpu_arch! Aborting....\n\n"
 		exit 1

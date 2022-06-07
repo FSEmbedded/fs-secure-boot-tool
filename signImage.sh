@@ -239,6 +239,8 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 			load_address=12000000
 		elif [ "$cpu_arch" == "8mm" ]; then
 			load_address=43000000
+		elif [ "$cpu_arch" == "8mn" ]; then
+			load_address=43000000
 		else
 			load_address=82000000
 		fi
@@ -261,22 +263,37 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
            "$MAGIC_NUMBER_FS_IMAGE_TYPE" == "4f4f424e"   ]; then
 		image_name="nboot_${cpu_arch}"
 		TARGET_NAME="${image_name}_signed.fs"
-		load_address=7E0FC0
-		download_addr=40480000
-		test_addr=00920000
+		if [ "$cpu_arch" == "8mm" ]; then
+			load_address=7E0FC0
+			download_addr=40480000
+			test_addr=00920000
+		elif [ "$cpu_arch" == "8mn" ]; then
+			load_address=00921fc0
+			download_addr=40480000
+			test_addr=00960000
+		fi
+		is_imx8m_nboot=1
 	elif [ "$MAGIC_NUMBER_FS" == "584c5346" -a \
            "$MAGIC_NUMBER_FS_IMAGE_TYPE" == "52414f42"   ]; then
 		image_name="nboot_${cpu_arch}"
 		TARGET_NAME="${image_name}_signed.fs"
-		load_address=7E0FC0
-		download_addr=40480000
-		test_addr=00920000
+		if [ "$cpu_arch" == "8mm" ]; then
+			load_address=7E0FC0
+			download_addr=40480000
+			test_addr=00920000
+		elif [ "$cpu_arch" == "8mn" ]; then
+			load_address=00921fc0
+			download_addr=40480000
+			test_addr=00960000
+		fi
+		is_imx8m_nboot=1
 	elif [ "$MAGIC_NUMBER_FS" == "584c5346" -a \
            "$MAGIC_NUMBER_FS_IMAGE_TYPE" == "4f422d55" ]; then
 		printf "i.MX8M uboot detected\n"
 		image_name=uboot.fs
 		TARGET_NAME="${image_name}_signed"
 		load_address=401fffc0
+		is_imx8m_uboot=1
 	elif [ "$MAGIC_NUMBER_AARCH64_ZIMAGE" == "644d5241" ]; then
 		printf "Kernel Image detected\n"
 		image_name="Image_${cpu_arch}"
@@ -1448,11 +1465,11 @@ setCertNumberSigning
 getImageToBeSigned
 getImageType
 
-if [ "${cpu_arch}" == "8mm" -a $image_name == "nboot_8mm" ]; then
+if [ ! -z $is_imx8m_nboot ]; then
 	signiMX8NBoot
 	exit 0
 fi
-if [ "${cpu_arch}" == "8mm" -a $image_name == "uboot.fs" ]; then
+if [ ! -z $is_imx8m_uboot ]; then
 	signImx8Uboot
 	exit 0
 fi
