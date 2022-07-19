@@ -267,10 +267,12 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 			load_address=7E0FC0
 			download_addr=40480000
 			test_addr=00920000
+			tee_addr=be000000
 		elif [ "$cpu_arch" == "8mn" ]; then
 			load_address=00921fc0
 			download_addr=40480000
 			test_addr=00960000
+			tee_addr=56000000
 		fi
 		is_imx8m_nboot=1
 	elif [ "$MAGIC_NUMBER_FS" == "584c5346" -a \
@@ -281,10 +283,12 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 			load_address=7E0FC0
 			download_addr=40480000
 			test_addr=00920000
+			tee_addr=be000000
 		elif [ "$cpu_arch" == "8mn" ]; then
 			load_address=00921fc0
 			download_addr=40480000
 			test_addr=00960000
+			tee_addr=56000000
 		fi
 		is_imx8m_nboot=1
 	elif [ "$MAGIC_NUMBER_FS" == "584c5346" -a \
@@ -1379,6 +1383,13 @@ function signiMX8NBoot
 				signFSImage atf $test_addr
 				setFSImageLengths $atf_size_diff nboot firmware
 				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/atf_signed \
+					>> $TMP_DIR/$TARGET_NAME 2>/dev/null
+				;;
+			"TEE"*)
+				printf "${LIGHT_GREEN}--> Found TEE${NORMAL}\n"
+				signFSImage tee $tee_addr
+				setFSImageLengths $tee_size_diff nboot firmware
+				cat $TMP_DIR/$TARGET_NAME $TMP_DIR/tee_signed \
 					>> $TMP_DIR/$TARGET_NAME 2>/dev/null
 				;;
 			*)
