@@ -11,6 +11,9 @@
 [Install CSFK]
     File = "###CST_DIR###crts/CSF1_1_sha256_###BIT###_65537_v3_usr_crt.pem"
 [Authenticate CSF]
+[Unlock]
+	Engine = CAAM
+	Features = MID, RNG
 [Install Key]
     File = "###CST_DIR###crts/IMG###NUM###_1_sha256_###BIT###_65537_v3_usr_crt.pem"
     Verification index = ###INDEX###
