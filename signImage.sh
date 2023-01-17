@@ -274,7 +274,7 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 			test_addr=00960000
 			tee_addr=56000000
 		elif [ "$cpu_arch" == "8mp" ]; then
-			load_address=0091ffc0
+			load_address=00927fc0
 			download_addr=40480000
 			test_addr=00970000
 			tee_addr=56000000
