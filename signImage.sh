@@ -267,7 +267,7 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 			load_address=7E0FC0
 			download_addr=40480000
 			test_addr=00920000
-			tee_addr=be000000
+			tee_addr=56000000
 		elif [ "$cpu_arch" == "8mn" ]; then
 			load_address=00921fc0
 			download_addr=40480000
@@ -288,7 +288,7 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 			load_address=7E0FC0
 			download_addr=40480000
 			test_addr=00920000
-			tee_addr=be000000
+			tee_addr=56000000
 		elif [ "$cpu_arch" == "8mn" ]; then
 			load_address=00921fc0
 			download_addr=40480000
