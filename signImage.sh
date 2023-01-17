@@ -1165,7 +1165,7 @@ function signSPL
 		runFakeCST
 		spl_size_diff=$((0x$signed_image_length - $image_size_no_padding))
 		adjustField $TMP_DIR/spl $boot_data_length \
-			$(printf "%08x" $((0x$signed_image_length + 0x400)))
+			$(printf "%08x" $((0x$signed_image_length)))
 
 		cp $TMP_DIR/$BOOT_IN_CSF $TMP_DIR/boot_in_org
 		createSignedImage exit_early
