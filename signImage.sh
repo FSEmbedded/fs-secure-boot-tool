@@ -408,7 +408,8 @@ function createSignedImage()
 	fi
 
 	# merge image + signature together
-	cat $TMP_DIR/$IMAGE $TMP_DIR/$CSF_BIN > $TMP_DIR/$TARGET_NAME
+	cat $TMP_DIR/$IMAGE $TMP_DIR/$CSF_BIN > $TMP_DIR/${TARGET_NAME}_t
+	mv $TMP_DIR/${TARGET_NAME}_t $TMP_DIR/${TARGET_NAME}
 
 	# check if NBoot image bigger than 0xd800
 	image_size=$(stat -c %s "$TMP_DIR/$TARGET_NAME")
