@@ -276,7 +276,7 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 		elif [ "$cpu_arch" == "8mp" ]; then
 			load_address=00927fc0
 			download_addr=40480000
-			test_addr=00970000
+			test_addr=00968000
 			tee_addr=56000000
 		fi
 		is_imx8m_nboot=1
@@ -297,7 +297,7 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 		elif [ "$cpu_arch" == "8mp" ]; then
 			load_address=0091ffc0
 			download_addr=40480000
-			test_addr=00970000
+			test_addr=00968000
 			tee_addr=56000000
 		fi
 		is_imx8m_nboot=1
