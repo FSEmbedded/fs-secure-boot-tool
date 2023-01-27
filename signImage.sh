@@ -304,8 +304,8 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 	elif [ "$MAGIC_NUMBER_FS" == "584c5346" -a \
            "$MAGIC_NUMBER_FS_IMAGE_TYPE" == "4f422d55" ]; then
 		printf "i.MX8M uboot detected\n"
-		image_name=uboot.fs
-		TARGET_NAME="${image_name}_signed"
+		image_name=uboot
+		TARGET_NAME="${image_name}_${cpu_arch}_signed.fs"
 		load_address=401fffc0
 		is_imx8m_uboot=1
 	elif [ "$MAGIC_NUMBER_AARCH64_ZIMAGE" == "644d5241" ]; then
