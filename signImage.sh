@@ -241,6 +241,8 @@ ${kernel_load_addr:2:2}${kernel_load_addr:0:2}`
 			load_address=43000000
 		elif [ "$cpu_arch" == "8mn" ]; then
 			load_address=43000000
+		elif [ "$cpu_arch" == "8mp" ]; then
+			load_address=43100000
 		else
 			load_address=82000000
 		fi
