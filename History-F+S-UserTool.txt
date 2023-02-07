@@ -1,6 +1,29 @@
 History of Changes for F&S Secure Boot Tool on F&S Boards and Modules
 =====================================================================
 
+fs-secure-boot-tool-V2023.02 (07.02.2023)
+-----------------------------------------
+Supported CPUs: i.MX8MM, i.MX8MN, i.MX8MP
+
+- Add Devicetree address for fsimx8mp
+- Change imx8m uboot naming
+- Change test address for fsimx8mp to new one
+- Fix signing for 8mn and 8mp
+- Fix bug where uboot was not signed with custom name
+- Fix address for SPL on i.MX8MP
+- Fix tee adresses
+- Add fsimx8mp to the user tool
+- Unlock CAAM Module for opTEE and ATF
+- Add optee as a signable subimage
+- Add support for i.MX8MN based Boards
+- Add custom address support for i.MX8M nboot and uboot
+- Implement Support for i.MX8M U-Boot, Linux Images and improve code
+- Change signing process to work with the i.MX 8 N-Boot after changes
+- Add Support for the i.MX8M N-Boot
+- Add Support for CST version 3.3.1 and i.MX8 SPL in N-Boot
+
+
+
 fs-secure-boot-tool-V2020.02 (10.02.2020)
 ----------------------------------------
 Supported CPUs: i.MX6 S/DL/D/Q, i.MX6 SX, i.MX6 UL, i.MX6 ULL
