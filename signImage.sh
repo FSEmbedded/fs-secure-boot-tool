@@ -390,7 +390,7 @@ function createSignedImage()
 		-e "s|###BOOT###|$TMP_DIR/$IMAGE|" -e "s/###ENGINE###/$engine/" \
 		$TMP_DIR/$BOOT_IN_CSF > $TMP_DIR/$BOOT_IN_CSF_FAKE
 	if [[ "$image_name" == *"nboot"* ]]; then
-		sed -e "20 s/#//" -e "21 s/#//" $TMP_DIR/$BOOT_IN_CSF_FAKE > \
+		sed -e "23 s/#//" -e "24 s/#//" $TMP_DIR/$BOOT_IN_CSF_FAKE > \
 		$TMP_DIR/$BOOT_IN_CSF
 	else
 		sed -e "25 s/#//" $TMP_DIR/$BOOT_IN_CSF_FAKE > \
