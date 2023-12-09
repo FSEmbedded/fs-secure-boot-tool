@@ -236,7 +236,6 @@ if [ "$action" == "create" ] || [ "$action" == "sign" ] || \
 			if [ ${version:2:1} -ge 3 ]; then
 				cst_enc_binary="${cst_sign_binary}"
 			else
-				echo ${version:2:1}
 				cst_enc_binary="${cst_sign_binary}_encrypt"
 			fi
 		elif [ ${version:0:1} -lt 3 ]; then
