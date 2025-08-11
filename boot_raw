@@ -15,6 +15,9 @@
     File = "###CST_DIR###crts/IMG###NUM###_1_sha256_###BIT###_65537_v3_usr_crt.pem"
     Verification index = ###INDEX###
     Target index = 2
+[Unlock]
+    Engine = CAAM
+    Features = MID, MFG
 [Authenticate Data]
     Verification index = 2
 #    Blocks = 0x907000 0x0 0x10 "###BOOT###", \
