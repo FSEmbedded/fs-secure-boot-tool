@@ -1529,7 +1529,8 @@ function prepare_uboot
 
 	./addfsheader.sh -a 16 -q -d "fsimx"${cpu_arch} -t "U-BOOT" $TMP_DIR/$IMAGE > $TMP_DIR/${IMAGE}_new
 	cp $TMP_DIR/${IMAGE}_new $TMP_DIR/$IMAGE
-	uboot_size=$(printf "%08x" $(($(stat --printf=%s $TMP_DIR/$IMAGE) + 0xF48 )))
+
+	uboot_size=$(printf "%08x" $(($(stat --printf=%s $TMP_DIR/$IMAGE) + 0xF48 - 0x40)))
 	adjustField $TMP_DIR/$IMAGE $fs_image_size_low $uboot_size
 }
 
