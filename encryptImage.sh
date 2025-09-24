@@ -393,10 +393,10 @@ ${csf_offset:2:2}${csf_offset:0:2}`
 		sed -e "s/###MASTER_KEY###/0/" $TMP_DIR/$BOOT_IN_CSF_FAKE > \
 		$TMP_DIR/$BOOT_IN_CSF_FAKE_2
 		if [[ "$image_name" == *"nboot"* ]]; then
-			sed -e "20 s/#//" -e "21 s/#//" -e '23,$s/#//' \
+			sed -e "23 s/#//" -e "24 s/#//" -e '26,$s/#//' \
 			$TMP_DIR/$BOOT_IN_CSF_FAKE_2 > $TMP_DIR/$BOOT_IN_CSF_FAKE
 		else
-			sed -e '22,$s/#//' $TMP_DIR/$BOOT_IN_CSF_FAKE_2 > \
+			sed -e '25,$s/#//' $TMP_DIR/$BOOT_IN_CSF_FAKE_2 > \
 			$TMP_DIR/$BOOT_IN_CSF_FAKE
 		fi
     fi
