@@ -1530,8 +1530,10 @@ function prepare_uboot
 	./addfsheader.sh -a 16 -q -d "fsimx"${cpu_arch} -t "U-BOOT" $TMP_DIR/$IMAGE > $TMP_DIR/${IMAGE}_new
 	cp $TMP_DIR/${IMAGE}_new $TMP_DIR/$IMAGE
 
-	uboot_size=$(printf "%08x" $(($(stat --printf=%s $TMP_DIR/$IMAGE) + 0xF48 - 0x40)))
-	adjustField $TMP_DIR/$IMAGE $fs_image_size_low $uboot_size
+	runFakeCST
+	# remove header from size
+	signed_uboot_length=$(printf %08x $((0x"$signed_image_length" - 0x40)))
+	adjustField $TMP_DIR/$IMAGE $fs_image_size_low $signed_uboot_length
 }
 
 ###############################################################################
@@ -1646,6 +1648,8 @@ function start_sign_imx8m_nboot
 	signFSImageInEnvironment
 	mv $TMP_DIR/new_header_signed $TMP_DIR/$TARGET_NAME
 	adjustField $TMP_DIR/$TARGET_NAME 12 "1000e000"
+	crc32 $TMP_DIR/$type
+	adjustField $TMP_DIR/$TARGET_NAME 28 $(crc32 $TMP_DIR/$TARGET_NAME)
 	mv $TMP_DIR/$TARGET_NAME bin/$TARGET_NAME
 
 	printf "${LIGHT_GREEN}Signed image (%s) successfully generated. ${NORMAL}\b\n" "$TARGET_NAME"
