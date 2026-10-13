@@ -1185,12 +1185,12 @@ function cycle_subimages
 ###############################################################################
 function get_fs_image_traits
 {
-	addr=$(./fsimage.sh -s p32[7] $1 $2)
-	free=$(./fsimage.sh -s p8[27] $1 $2)
-	type=$(./fsimage.sh -s type  $1 $2)
-	descr=$(./fsimage.sh -s descr  $1 $2)
-	flags=$(./fsimage.sh -s flags $1 $2)
-	org_size=$(printf "%08x" $(./fsimage.sh -s size  $1 $2))
+	addr=$(cat $1 | ./fsimage.sh -s p32[7] $2)
+	free=$(cat $1 | ./fsimage.sh -s p8[27] $2)
+	type=$(cat $1 | ./fsimage.sh -s type   $2)
+	descr=$(cat $1 | ./fsimage.sh -s descr $2)
+	flags=$(cat $1 | ./fsimage.sh -s flags $2)
+	org_size=$(printf "%08x" $(cat $1 | ./fsimage.sh -s size $2))
 }
 
 ###############################################################################
@@ -1231,7 +1231,7 @@ function handleImageGroup
 		./addfsheader.sh -q -d $descr -t $type -s $TMP_DIR/$1 > $TMP_DIR/$1_header
 	fi
 	mv $TMP_DIR/$1_header $TMP_DIR/$1
-	current_flags=$(./fsimage.sh -s flags $TMP_DIR/$IMAGE $my_index)
+	current_flags=$(cat $TMP_DIR/$IMAGE | ./fsimage.sh -s flags $my_index)
 }
 
 ###############################################################################
@@ -1257,7 +1257,7 @@ function handleImageGroup
 function handleFSImage
 {
 	local my_index=$2
-	current_flags=$(./fsimage.sh -s flags _tmp/header 0)
+	current_flags=$(cat _tmp/header | ./fsimage.sh -s flags 0)
 	if ! [ $(($current_flags & 0x4000)) -eq 0 ]; then
 		signFSImage $1 $my_index
 	else
@@ -1450,7 +1450,7 @@ function check_type_and_handle
 	get_fs_image_traits _tmp/header 0
 	cp _tmp/header _tmp/header_${my_index}
 
-	./fsimage.sh -l $TMP_DIR/body &> /dev/null
+	cat $TMP_DIR/body | ./fsimage.sh -l &> /dev/null
 	if [ $? -eq 0 ]; then
 		load_spaces=$load_spaces"-"
 		handleImageGroup $1 $full_size $my_index
@@ -1488,8 +1488,8 @@ function signiMX8NBoot
 
 	xtractNextImage
 
-	if [ $(($(./fsimage.sh -s flags $TMP_DIR/header) & 0x2000)) -eq 0 ]; then
-		name=$(./fsimage.sh -s type $TMP_DIR/header)
+	if [ $(($(cat $TMP_DIR/header | ./fsimage.sh -s flags) & 0x2000)) -eq 0 ]; then
+		name=$(cat $TMP_DIR/header | ./fsimage.sh -s type)
 		cat $TMP_DIR/header $TMP_DIR/body > $TMP_DIR/$name
 		return
 	fi
@@ -1613,7 +1613,7 @@ function setup_tool
 
 function get_offsets_and_sizes
 {
-	local string=$(./fsimage.sh -l $TMP_DIR/$IMAGE | sed -e 's/^.*: //g' | sed -e 's/ D.*//g' | sed -e '/^[- ]/d')
+	local string=$(cat $TMP_DIR/$IMAGE | ./fsimage.sh -l | sed -e 's/^.*: //g' | sed -e 's/ D.*//g' | sed -e '/^[- ]/d')
 	string=$(echo $string | tr '\n' ' ')
 	read -a list <<< "$string"
 
@@ -1641,7 +1641,7 @@ function start_sign_imx8m_nboot
 	get_offsets_and_sizes
 	signiMX8NBoot NBOOT
 	cp $TMP_DIR/NBOOT bin/${TARGET_NAME}_recovery
-	./fsimage.sh -x $TMP_DIR/NBOOT 0 > $TMP_DIR/NBOOT_no_header
+	cat $TMP_DIR/NBOOT | ./fsimage.sh -x 0 > $TMP_DIR/NBOOT_no_header
 	ivtToFSImage none NBOOT_no_header "40480000"
 	dd if=$TMP_DIR/$IMAGE of=$TMP_DIR/header bs=64 count=1 status=none
 	getNewFsHeader NBOOT_no_header
