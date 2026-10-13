@@ -40,7 +40,7 @@ function setup_variables()
 	mkdir -p $TMP_DIR
 
 	# get path to crts folder
-	CRTS_DIR=`find ${CST_DIR} -type d -iname "crts"`
+	CRTS_DIR=`find ${CST_DIR} -type d -iname "crts" -print -quit`
 	if [ ! -d "$CRTS_DIR" ]; then
 		printf "\ncrts folder not found! Aborting....\n\n"
 		exit 1

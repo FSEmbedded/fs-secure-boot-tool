@@ -215,8 +215,8 @@ if [ "$action" == "create" ] || [ "$action" == "sign" ] || \
 		if [ ! -z $host_version ] ; then
 			srktool_binary=`find ${cst_dir} -type f -iname "srktool" |\
 			grep linux | tail -n 1`
-			read -a version <<< $(${cst_dir}/linux64/bin/srktool -v)
-			version=${version[5]}
+			read -a version <<< $(${cst_dir}/linux64/bin/srktool -v | grep Code)
+			version=${version[4]}
 			cst_sign_binary=`find ${cst_dir} -type f -iname "cst" |\
 			grep linux | tail -n 1`
 		else
